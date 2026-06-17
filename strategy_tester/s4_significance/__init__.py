@@ -1,0 +1,9 @@
+"""S4 significance methods — auto-register on import."""
+from strategy_tester.s4_significance import psr  # noqa: F401
+from strategy_tester.s4_significance import dsr  # noqa: F401
+from strategy_tester.s4_significance import min_trl  # noqa: F401
+from strategy_tester.s4_significance import wfe  # noqa: F401
+from strategy_tester.s4_significance import t_test  # noqa: F401
+from strategy_tester.s4_significance import carver_2sigma  # noqa: F401
+from strategy_tester.s4_significance import permutation  # noqa: F401
+from strategy_tester.s4_significance import drawdown  # noqa: F401

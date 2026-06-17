@@ -1,0 +1,10 @@
+"""S5 portfolio methods — auto-register on import."""
+from strategy_tester.s5_portfolio import dynamic_1k  # noqa: F401
+from strategy_tester.s5_portfolio import equal_weight  # noqa: F401
+from strategy_tester.s5_portfolio import half_kelly  # noqa: F401
+from strategy_tester.s5_portfolio import handcraft_carver  # noqa: F401
+from strategy_tester.s5_portfolio import hrp  # noqa: F401
+from strategy_tester.s5_portfolio import inverse_vol  # noqa: F401
+from strategy_tester.s5_portfolio import risk_parity  # noqa: F401
+from strategy_tester.s5_portfolio import sharpe_weighted  # noqa: F401
+from strategy_tester.s5_portfolio import tier_based  # noqa: F401

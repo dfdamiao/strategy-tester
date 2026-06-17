@@ -1,0 +1,24 @@
+strategy-tester
+Copyright (c) 2026 Daniel Damiao
+
+This product is licensed under the MIT License (see LICENSE).
+
+-------------------------------------------------------------------------------
+Third-party attributions
+-------------------------------------------------------------------------------
+
+vectorbt
+  All backtests in this project run on the stock `vectorbt` package by
+  Oleg Polakow (https://github.com/polakowo/vectorbt), installed from PyPI and
+  used under its own license. Tested with vectorbt 0.28.4.
+
+vectorbt_custom  (NOT included, NOT licensed here)
+  The author separately maintains a private, performance-optimized fork of
+  vectorbt referred to as "vectorbt_custom". That fork is NOT distributed with
+  this project and is granted NO license here; it is named only for
+  attribution. strategy-tester depends solely on the stock `vectorbt` package
+  and never imports the fork.
+
+Methods in this pipeline implement published techniques. Where a stage follows
+a specific reference, the source is cited in that module's docstring
+(e.g. Chan, Pardo, Lopez de Prado, Bailey & Lopez de Prado, Carver, Kaufman).

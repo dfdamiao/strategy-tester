@@ -1,0 +1,16 @@
+"""S1 screening methods — auto-register on import."""
+from strategy_tester.s1_screening import chan_halflife  # noqa: F401
+from strategy_tester.s1_screening import chan_hurst  # noqa: F401
+from strategy_tester.s1_screening import kaufman_er  # noqa: F401
+from strategy_tester.s1_screening import combined  # noqa: F401
+from strategy_tester.s1_screening import kaufman_kama  # noqa: F401
+from strategy_tester.s1_screening import kaufman_er_trend  # noqa: F401
+from strategy_tester.s1_screening import chan_hurst_trend  # noqa: F401
+from strategy_tester.s1_screening import trend_combined  # noqa: F401
+from strategy_tester.s1_screening import passthrough  # noqa: F401
+from strategy_tester.s1_screening import kpss  # noqa: F401
+from strategy_tester.s1_screening import variance_ratio  # noqa: F401
+from strategy_tester.s1_screening import cadf  # noqa: F401
+from strategy_tester.s1_screening import johansen  # noqa: F401
+from strategy_tester.s1_screening import vol_cone  # noqa: F401
+from strategy_tester.s1_screening import regime_aware  # noqa: F401

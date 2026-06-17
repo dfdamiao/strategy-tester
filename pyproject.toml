@@ -1,0 +1,36 @@
+[project]
+name = "strategy-tester"
+version = "0.1.0"
+description = "A staged research pipeline for systematic trading strategies: screen, optimize, validate, significance-test, and portfolio-simulate signal candidates on vectorbt backtests."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Daniel Damiao" }]
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "numba",
+    "vectorbt>=0.26,<0.29",
+    "yfinance",
+    "pyarrow",
+    "statsmodels",
+    "scikit-learn",
+    "pykalman",
+    "quantstats",
+    "plotly",
+    "pydantic",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["strategy_tester*"]
+
+[tool.ruff]
+line-length = 88

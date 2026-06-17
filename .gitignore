@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Run artifacts / downloaded data (root-anchored so the strategy_tester/data
+# source package is NOT ignored). Never commit downloaded prices or run output.
+/cache/
+/outputs/
+/logs/
+*.parquet
+*.lmdb
+*.db
+
+# Matplotlib / env
+.matplotlib/
+.env
+.venv/
+venv/
+
+# OS
+.DS_Store

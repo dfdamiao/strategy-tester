@@ -1,0 +1,24 @@
+# Core
+numpy
+pandas
+scipy
+numba
+
+# Backtesting engine (stock vectorbt — tested with 0.28.4)
+vectorbt>=0.26,<0.29
+
+# Data source (keyless)
+yfinance
+pyarrow
+
+# Screening / validation / significance
+statsmodels
+scikit-learn
+pykalman
+
+# Reporting
+quantstats
+plotly
+
+# Schemas
+pydantic
