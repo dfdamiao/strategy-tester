@@ -129,6 +129,35 @@ res = backtest_vbt_fold(
 There is also a pure-Numba backtest path (`backtest_numba_fold`) that needs no
 vectorbt at all, used for fast grid sweeps.
 
+## Stops and ATR
+
+**Stop-loss.** Every backtest takes a `stop_pct`, a fractional stop-loss (e.g.
+`0.10` = a 10% stop) passed straight through to vectorbt's `sl_stop`; `0.0`
+disables it:
+
+```python
+backtest_vbt_fold(num_prices, ratio, window=20, entry_thresh=-2.0,
+                  exit_thresh=0.5, stop_pct=0.10)   # 10% stop
+```
+
+In the pipeline, the S2 optimizer sweeps a grid of stops via the `stop_grid`
+config key (default `[0.0, 0.10, 0.20]`) and keeps the best per pair:
+
+```python
+pipe.run(prices, pairs, config={"stop_grid": [0.0, 0.05, 0.10, 0.15]})
+```
+
+**ATR.** `strategy_tester/indicators.py` implements Wilder's Average True Range
+(1978):
+
+- `compute_atr(series, period=14)` from a single close-to-close series.
+- `compute_atr_ohlcv(high, low, close, period=14)` using the proper True Range.
+
+ATR drives several signals (`atr_pullback`, `keltner`, `trendline_breakout`,
+`kalman_hedge`) and the `ALT-ATR` preset ("ATR Pullback", Clenow / Murphy),
+where the stop is built into the signal itself rather than applied as a flat
+percentage.
+
 ## Bringing your own data
 
 The pipeline takes a plain pandas DataFrame of close prices (DatetimeIndex x
