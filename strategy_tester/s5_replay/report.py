@@ -6,6 +6,7 @@ Extracted verbatim from
 that compares against hardcoded paleologo_verification.md numbers stays in
 the strategy adapter; this lib accepts it as an opaque HTML fragment).
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -27,8 +28,16 @@ from strategy_tester.s5_replay.walker import DEFAULT_PER_NAME_CAP
 
 
 _PALETTE = [
-    "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-    "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
 ]
 
 
@@ -56,35 +65,69 @@ def fmt_money(x: float) -> str:
 
 
 _PCT_DEC = {
-    "oos_cagr", "oos_max_dd", "oos_vol_ann",
-    "full_cagr", "full_max_dd", "full_vol_ann",
-    "alpha_ann", "tracking_error", "excess_cagr",
+    "oos_cagr",
+    "oos_max_dd",
+    "oos_vol_ann",
+    "full_cagr",
+    "full_max_dd",
+    "full_vol_ann",
+    "alpha_ann",
+    "tracking_error",
+    "excess_cagr",
 }
 _PCT_RAW = {
-    "oos_hit_rate", "oos_pct_invested",
-    "full_hit_rate", "full_pct_invested",
-    "mean_clip_ratio", "up_capture", "down_capture",
+    "oos_hit_rate",
+    "oos_pct_invested",
+    "full_hit_rate",
+    "full_pct_invested",
+    "mean_clip_ratio",
+    "up_capture",
+    "down_capture",
 }
 _NUM3 = {
-    "oos_sharpe", "oos_calmar", "oos_sortino", "oos_martin",
-    "full_sharpe", "full_calmar", "full_sortino", "full_martin",
-    "ir_vs_spy", "beta", "corr_spy",
+    "oos_sharpe",
+    "oos_calmar",
+    "oos_sortino",
+    "oos_martin",
+    "full_sharpe",
+    "full_calmar",
+    "full_sortino",
+    "full_martin",
+    "ir_vs_spy",
+    "beta",
+    "corr_spy",
 }
 _NUM2 = {
-    "oos_ulcer", "oos_skew", "oos_kurtosis",
-    "full_ulcer", "full_skew", "full_kurtosis",
-    "max_entry_pct_cash", "p95_entry_pct_cash", "max_entry_pct_nav",
+    "oos_ulcer",
+    "oos_skew",
+    "oos_kurtosis",
+    "full_ulcer",
+    "full_skew",
+    "full_kurtosis",
+    "max_entry_pct_cash",
+    "p95_entry_pct_cash",
+    "max_entry_pct_nav",
 }
 _INT = {
-    "n_trades", "n_failed_entries", "n_clipped", "n_too_small",
-    "oos_dd_dur_days", "full_dd_dur_days",
+    "n_trades",
+    "n_failed_entries",
+    "n_clipped",
+    "n_too_small",
+    "oos_dd_dur_days",
+    "full_dd_dur_days",
 }
 _MONEY = {"end_value", "oos_end_value"}
 # Columns that compare a scheme to the SPY benchmark — colored red in HTML
 # so they stand out against the scheme's own metrics.
 _SPY_COLS = {
-    "ir_vs_spy", "alpha_ann", "beta", "corr_spy",
-    "tracking_error", "up_capture", "down_capture", "excess_cagr",
+    "ir_vs_spy",
+    "alpha_ann",
+    "beta",
+    "corr_spy",
+    "tracking_error",
+    "up_capture",
+    "down_capture",
+    "excess_cagr",
 }
 
 
@@ -198,7 +241,9 @@ def summary_table_html(
 
 
 def _slice_rebase(
-    eq: pd.Series, start: pd.Timestamp | None, base: float | None,
+    eq: pd.Series,
+    start: pd.Timestamp | None,
+    base: float | None,
 ) -> pd.Series:
     """Slice ``eq`` at ``start`` (inclusive) and rebase first value to
     ``base``. Pass ``start=None`` for the full series and ``base=None`` to
@@ -219,11 +264,12 @@ def equity_overlay(
     title: str,
     *,
     bh_label: str = "buy-hold",
+    spy_label: str = "SPY",
     window_start: pd.Timestamp | None = None,
     rebase_to: float | None = None,
     div_id: str = "fig-eq",
 ) -> str:
-    """Plot scheme equity + SPY + buy-hold benchmarks. If ``window_start``
+    """Plot scheme equity + benchmark + buy-hold. If ``window_start``
     is given, slice all series at that date and rebase the first value to
     ``rebase_to`` so the OOS-only and full-period panels are directly
     comparable."""
@@ -234,38 +280,62 @@ def equity_overlay(
             continue
         eq = _slice_rebase(by_name[scheme].equity, window_start, rebase_to)
         color = _PALETTE[i % len(_PALETTE)]
-        fig.add_trace(go.Scatter(
-            x=eq.index, y=eq.values,
-            mode="lines", name=scheme,
-            line=dict(color=color, width=2),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=eq.index,
+                y=eq.values,
+                mode="lines",
+                name=scheme,
+                line=dict(color=color, width=2),
+            )
+        )
     if spy_eq is not None:
         spy = _slice_rebase(spy_eq, window_start, rebase_to)
-        fig.add_trace(go.Scatter(
-            x=spy.index, y=spy.values,
-            mode="lines", name="SPY",
-            line=dict(color="#ef5350", dash="dash", width=2),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=spy.index,
+                y=spy.values,
+                mode="lines",
+                name=spy_label,
+                line=dict(color="#ef5350", dash="dash", width=2),
+            )
+        )
     bh = _slice_rebase(bh_eq, window_start, rebase_to)
-    fig.add_trace(go.Scatter(
-        x=bh.index, y=bh.values,
-        mode="lines", name=bh_label,
-        line=dict(color="#bbbbbb", dash="dot", width=1.5),
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=bh.index,
+            y=bh.values,
+            mode="lines",
+            name=bh_label,
+            line=dict(color="#bbbbbb", dash="dot", width=1.5),
+        )
+    )
     if window_start is None:
         fig.add_vrect(
-            x0=oos_start, x1=max(r.equity.index.max() for r in results),
-            fillcolor="#26a69a", opacity=0.08, line_width=0,
-            annotation_text="OOS ->", annotation_position="top left",
+            x0=oos_start,
+            x1=max(r.equity.index.max() for r in results),
+            fillcolor="#26a69a",
+            opacity=0.08,
+            line_width=0,
+            annotation_text="OOS ->",
+            annotation_position="top left",
             annotation=dict(font_color="#26a69a"),
         )
     fig.update_layout(
-        title=title, template="plotly_dark",
-        paper_bgcolor="#111", plot_bgcolor="#181818",
+        title=title,
+        template="plotly_dark",
+        paper_bgcolor="#111",
+        plot_bgcolor="#181818",
         margin=dict(l=50, r=180, t=50, b=40),
         height=520,
-        legend=dict(orientation="v", x=1.02, y=1, xanchor="left",
-                    bgcolor="rgba(26,26,26,0.8)", font=dict(size=10)),
+        legend=dict(
+            orientation="v",
+            x=1.02,
+            y=1,
+            xanchor="left",
+            bgcolor="rgba(26,26,26,0.8)",
+            font=dict(size=10),
+        ),
         yaxis=dict(type="log", title="NetLiq (log)"),
     )
     fig.update_xaxes(gridcolor="#2a2a2a")
@@ -280,6 +350,7 @@ def drawdown_overlay(
     title: str,
     *,
     window_start: pd.Timestamp | None = None,
+    spy_label: str = "SPY",
     div_id: str = "fig-dd",
 ) -> str:
     """Plot drawdown for each scheme + SPY. ``window_start`` slices all
@@ -293,25 +364,43 @@ def drawdown_overlay(
         eq = _slice_rebase(by_name[scheme].equity, window_start, None)
         dd = (eq / eq.cummax() - 1) * 100
         color = _PALETTE[i % len(_PALETTE)]
-        fig.add_trace(go.Scatter(
-            x=dd.index, y=dd.values,
-            mode="lines", name=scheme, line=dict(color=color, width=1.6),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=dd.index,
+                y=dd.values,
+                mode="lines",
+                name=scheme,
+                line=dict(color=color, width=1.6),
+            )
+        )
     if spy_eq is not None:
         spy = _slice_rebase(spy_eq, window_start, None)
         spy_dd = (spy / spy.cummax() - 1) * 100
-        fig.add_trace(go.Scatter(
-            x=spy_dd.index, y=spy_dd.values,
-            mode="lines", name="SPY",
-            line=dict(color="#ef5350", dash="dash", width=1.5),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=spy_dd.index,
+                y=spy_dd.values,
+                mode="lines",
+                name=spy_label,
+                line=dict(color="#ef5350", dash="dash", width=1.5),
+            )
+        )
     fig.update_layout(
-        title=title, template="plotly_dark",
-        paper_bgcolor="#111", plot_bgcolor="#181818",
-        margin=dict(l=50, r=180, t=50, b=40), height=380,
+        title=title,
+        template="plotly_dark",
+        paper_bgcolor="#111",
+        plot_bgcolor="#181818",
+        margin=dict(l=50, r=180, t=50, b=40),
+        height=380,
         yaxis_title="Drawdown (%)",
-        legend=dict(orientation="v", x=1.02, y=1, xanchor="left",
-                    bgcolor="rgba(26,26,26,0.8)", font=dict(size=10)),
+        legend=dict(
+            orientation="v",
+            x=1.02,
+            y=1,
+            xanchor="left",
+            bgcolor="rgba(26,26,26,0.8)",
+            font=dict(size=10),
+        ),
     )
     fig.update_xaxes(gridcolor="#2a2a2a")
     fig.update_yaxes(gridcolor="#2a2a2a")
@@ -348,7 +437,9 @@ def cash_mobilization_overlay(
         return f"<div id='{div_id}'>(no snapshot data in window)</div>"
 
     fig = make_subplots(
-        rows=4, cols=1, shared_xaxes=True,
+        rows=4,
+        cols=1,
+        shared_xaxes=True,
         row_heights=[0.34, 0.22, 0.22, 0.22],
         vertical_spacing=0.05,
         subplot_titles=(
@@ -360,41 +451,81 @@ def cash_mobilization_overlay(
     )
 
     # Subplot A — NAV / cash / deployed
-    fig.add_trace(go.Scatter(
-        x=snap.index, y=snap["netliq"], name="NAV",
-        line=dict(color="#9ecbff", width=1.8),
-    ), row=1, col=1)
-    fig.add_trace(go.Scatter(
-        x=snap.index, y=snap["cash"], name="Cash",
-        line=dict(color="#26a69a", width=1.4),
-    ), row=1, col=1)
-    fig.add_trace(go.Scatter(
-        x=snap.index, y=snap["position_value"], name="Deployed",
-        line=dict(color="#ffa726", width=1.4),
-    ), row=1, col=1)
+    fig.add_trace(
+        go.Scatter(
+            x=snap.index,
+            y=snap["netliq"],
+            name="NAV",
+            line=dict(color="#9ecbff", width=1.8),
+        ),
+        row=1,
+        col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=snap.index,
+            y=snap["cash"],
+            name="Cash",
+            line=dict(color="#26a69a", width=1.4),
+        ),
+        row=1,
+        col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=snap.index,
+            y=snap["position_value"],
+            name="Deployed",
+            line=dict(color="#ffa726", width=1.4),
+        ),
+        row=1,
+        col=1,
+    )
 
     # Subplot B — utilization %
     util = (snap["position_value"] / snap["netliq"].replace(0, np.nan)) * 100
-    fig.add_trace(go.Scatter(
-        x=snap.index, y=util, name="Util %",
-        line=dict(color="#ce93d8", width=1.4), showlegend=False,
-    ), row=2, col=1)
+    fig.add_trace(
+        go.Scatter(
+            x=snap.index,
+            y=util,
+            name="Util %",
+            line=dict(color="#ce93d8", width=1.4),
+            showlegend=False,
+        ),
+        row=2,
+        col=1,
+    )
     fig.add_hrect(
-        y0=50, y1=95, fillcolor="rgba(63,185,80,0.08)",
-        line_width=0, row=2, col=1,
+        y0=50,
+        y1=95,
+        fillcolor="rgba(63,185,80,0.08)",
+        line_width=0,
+        row=2,
+        col=1,
     )
 
     # Subplot C — # active positions
-    max_active = max(1, int(np.floor(cohort_size * per_name_cap))) \
-        if per_name_cap > 0 else cohort_size
-    fig.add_trace(go.Scatter(
-        x=snap.index, y=snap["n_positions"], name="# active",
-        line=dict(color="#9ecbff", width=1.4, shape="hv"),
-        showlegend=False,
-    ), row=3, col=1)
+    max_active = (
+        max(1, int(np.floor(cohort_size * per_name_cap)))
+        if per_name_cap > 0
+        else cohort_size
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=snap.index,
+            y=snap["n_positions"],
+            name="# active",
+            line=dict(color="#9ecbff", width=1.4, shape="hv"),
+            showlegend=False,
+        ),
+        row=3,
+        col=1,
+    )
     fig.add_hline(
-        y=max_active, line=dict(color="#888", dash="dash", width=1),
-        row=3, col=1,
+        y=max_active,
+        line=dict(color="#888", dash="dash", width=1),
+        row=3,
+        col=1,
     )
 
     # Subplot D — entry health markers
@@ -410,36 +541,68 @@ def cash_mobilization_overlay(
     no_cash_dates = [f.date for f in failed if f.reason == "no_cash"]
 
     if clean_dates:
-        fig.add_trace(go.Scatter(
-            x=clean_dates, y=[1] * len(clean_dates),
-            mode="markers", name=f"clean ({len(clean_dates)})",
-            marker=dict(color="#3fb950", size=5, symbol="circle"),
-        ), row=4, col=1)
+        fig.add_trace(
+            go.Scatter(
+                x=clean_dates,
+                y=[1] * len(clean_dates),
+                mode="markers",
+                name=f"clean ({len(clean_dates)})",
+                marker=dict(color="#3fb950", size=5, symbol="circle"),
+            ),
+            row=4,
+            col=1,
+        )
     if too_small_dates:
-        fig.add_trace(go.Scatter(
-            x=too_small_dates, y=[2] * len(too_small_dates),
-            mode="markers", name=f"too_small ({len(too_small_dates)})",
-            marker=dict(color="#d29922", size=6, symbol="triangle-up"),
-        ), row=4, col=1)
+        fig.add_trace(
+            go.Scatter(
+                x=too_small_dates,
+                y=[2] * len(too_small_dates),
+                mode="markers",
+                name=f"too_small ({len(too_small_dates)})",
+                marker=dict(color="#d29922", size=6, symbol="triangle-up"),
+            ),
+            row=4,
+            col=1,
+        )
     if clipped_dates:
-        fig.add_trace(go.Scatter(
-            x=clipped_dates, y=[3] * len(clipped_dates),
-            mode="markers", name=f"clipped ({len(clipped_dates)})",
-            marker=dict(color="#f85149", size=6, symbol="x"),
-        ), row=4, col=1)
+        fig.add_trace(
+            go.Scatter(
+                x=clipped_dates,
+                y=[3] * len(clipped_dates),
+                mode="markers",
+                name=f"clipped ({len(clipped_dates)})",
+                marker=dict(color="#f85149", size=6, symbol="x"),
+            ),
+            row=4,
+            col=1,
+        )
     if no_cash_dates:
-        fig.add_trace(go.Scatter(
-            x=no_cash_dates, y=[4] * len(no_cash_dates),
-            mode="markers", name=f"no_cash ({len(no_cash_dates)})",
-            marker=dict(color="#a371f7", size=6, symbol="square"),
-        ), row=4, col=1)
+        fig.add_trace(
+            go.Scatter(
+                x=no_cash_dates,
+                y=[4] * len(no_cash_dates),
+                mode="markers",
+                name=f"no_cash ({len(no_cash_dates)})",
+                marker=dict(color="#a371f7", size=6, symbol="square"),
+            ),
+            row=4,
+            col=1,
+        )
 
     fig.update_layout(
-        template="plotly_dark", paper_bgcolor="#111",
+        template="plotly_dark",
+        paper_bgcolor="#111",
         plot_bgcolor="#181818",
-        margin=dict(l=50, r=180, t=40, b=40), height=720,
-        legend=dict(orientation="v", x=1.02, y=1, xanchor="left",
-                    bgcolor="rgba(26,26,26,0.8)", font=dict(size=10)),
+        margin=dict(l=50, r=180, t=40, b=40),
+        height=720,
+        legend=dict(
+            orientation="v",
+            x=1.02,
+            y=1,
+            xanchor="left",
+            bgcolor="rgba(26,26,26,0.8)",
+            font=dict(size=10),
+        ),
         title=f"Cash Mobilization — {result.scheme}",
     )
     fig.update_xaxes(gridcolor="#2a2a2a")
@@ -448,13 +611,18 @@ def cash_mobilization_overlay(
     fig.update_yaxes(title_text="%", range=[0, 105], row=2, col=1)
     fig.update_yaxes(title_text="count", row=3, col=1)
     fig.update_yaxes(
-        title_text="status", row=4, col=1,
-        tickmode="array", tickvals=[1, 2, 3, 4],
+        title_text="status",
+        row=4,
+        col=1,
+        tickmode="array",
+        tickvals=[1, 2, 3, 4],
         ticktext=["clean", "too_small", "clipped", "no_cash"],
         range=[0, 5],
     )
     return fig.to_html(
-        full_html=False, include_plotlyjs=False, div_id=div_id,
+        full_html=False,
+        include_plotlyjs=False,
+        div_id=div_id,
     )
 
 
@@ -464,7 +632,9 @@ def cash_mobilization_overlay(
 
 
 def verdict_html(
-    summary: pd.DataFrame, n_tickers: int, min_tickers_gate: int = 10,
+    summary: pd.DataFrame,
+    n_tickers: int,
+    min_tickers_gate: int = 10,
 ) -> str:
     viable = summary.dropna(subset=["oos_sharpe"]).copy()
     if n_tickers < min_tickers_gate or len(viable) == 0:
@@ -475,8 +645,10 @@ def verdict_html(
     viable = viable.sort_values("oos_sharpe", ascending=False)
     best = viable.iloc[0]
     cls = (
-        "green" if best["oos_sharpe"] >= 1.0
-        else "amber" if best["oos_sharpe"] >= 0.5
+        "green"
+        if best["oos_sharpe"] >= 1.0
+        else "amber"
+        if best["oos_sharpe"] >= 0.5
         else "red"
     )
     return (
@@ -524,7 +696,9 @@ def build_html(
                          to ``f"{n_tickers}-ticker buy-hold"``.
     """
     summary_sorted = summary.sort_values(
-        "oos_sharpe", ascending=False, na_position="last",
+        "oos_sharpe",
+        ascending=False,
+        na_position="last",
     ).reset_index(drop=True)
     top3 = set(summary_sorted["scheme"].head(3).tolist())
 
@@ -536,8 +710,11 @@ def build_html(
     top10_by_sr = summary_sorted["scheme"].head(10).tolist()
     if "oos_end_value" in summary.columns:
         top10_by_end = (
-            summary.sort_values("oos_end_value", ascending=False, na_position="last")
-            ["scheme"].head(10).tolist()
+            summary.sort_values("oos_end_value", ascending=False, na_position="last")[
+                "scheme"
+            ]
+            .head(10)
+            .tolist()
         )
     else:
         top10_by_end = top10_by_sr
@@ -547,29 +724,43 @@ def build_html(
         bh_label = f"{n_tickers}-ticker buy-hold"
 
     eq_full_html = equity_overlay(
-        results, top_union, spy_eq, bh_eq, oos_start,
+        results,
+        top_union,
+        spy_eq,
+        bh_eq,
+        oos_start,
         f"Equity — full period — top 10 by OOS Sharpe ∪ top 10 by OOS end-value "
         f"+ SPY + {bh_label}",
         bh_label=bh_label,
         div_id="fig-eq-full",
     )
     eq_oos_html = equity_overlay(
-        results, top_union, spy_eq, bh_eq, oos_start,
+        results,
+        top_union,
+        spy_eq,
+        bh_eq,
+        oos_start,
         f"Equity — OOS only ({oos_start.date()}+) — top 10 by OOS Sharpe ∪ "
         f"top 10 by OOS end-value, rebased to ${seed_nav:,.0f}",
         bh_label=bh_label,
-        window_start=oos_start, rebase_to=seed_nav,
+        window_start=oos_start,
+        rebase_to=seed_nav,
         div_id="fig-eq-oos",
     )
     dd_full_html = drawdown_overlay(
-        results, top10_by_sr, spy_eq,
+        results,
+        top10_by_sr,
+        spy_eq,
         "Drawdown — full period — top 10 by OOS Sharpe vs SPY",
         div_id="fig-dd-full",
     )
     dd_oos_html = drawdown_overlay(
-        results, top10_by_sr, spy_eq,
+        results,
+        top10_by_sr,
+        spy_eq,
         f"Drawdown — OOS only ({oos_start.date()}+) vs SPY",
-        window_start=oos_start, div_id="fig-dd-oos",
+        window_start=oos_start,
+        div_id="fig-dd-oos",
     )
 
     # Cash mobilization plots — top OOS-Sharpe scheme + deployed scheme
@@ -581,7 +772,8 @@ def build_html(
     if top_scheme_name and top_scheme_name in by_name:
         cash_mob_targets.append((top_scheme_name, "top OOS-Sharpe"))
     if (
-        deployed_scheme is not None and deployed_scheme in by_name
+        deployed_scheme is not None
+        and deployed_scheme in by_name
         and deployed_scheme != top_scheme_name
     ):
         cash_mob_targets.append((deployed_scheme, "deployed"))
@@ -593,15 +785,21 @@ def build_html(
             f"<h3 style='color:#9ecbff;font-size:14px;margin-top:18px'>"
             f"{scheme_name} ({label})</h3>"
             + cash_mobilization_overlay(
-                r, cohort_size=n_tickers, per_name_cap=cap,
+                r,
+                cohort_size=n_tickers,
+                per_name_cap=cap,
                 div_id=f"fig-cash-mob-{scheme_name}",
             )
         )
-    cash_mob_html = "\n".join(cash_mob_blocks) if cash_mob_blocks else (
-        "<p>(no scheme available for cash mobilization plot)</p>"
+    cash_mob_html = (
+        "\n".join(cash_mob_blocks)
+        if cash_mob_blocks
+        else ("<p>(no scheme available for cash mobilization plot)</p>")
     )
 
-    spy_row = spy_summary_row(spy_eq, oos_start, list(summary_sorted.columns), seed_nav=seed_nav)
+    spy_row = spy_summary_row(
+        spy_eq, oos_start, list(summary_sorted.columns), seed_nav=seed_nav
+    )
     table_html = summary_table_html(summary_sorted, top3, spy_row=spy_row)
     verdict_block = verdict_html(summary_sorted, n_tickers)
 
@@ -670,11 +868,10 @@ a {{ color:#58a6ff; }}
 </div>
 """
 
-    deployed_label = (
-        deployed_scheme if deployed_scheme is not None else "(none)"
-    )
+    deployed_label = deployed_scheme if deployed_scheme is not None else "(none)"
     vs_old_block = (
-        vs_old_s5_html if vs_old_s5_html is not None
+        vs_old_s5_html
+        if vs_old_s5_html is not None
         else "<p>(no reference comparison provided)</p>"
     )
 

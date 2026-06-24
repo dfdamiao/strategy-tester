@@ -78,6 +78,7 @@ in memory), you can fabricate a minimal one for the report — see
 `io_state.load_*` helpers.
 ────────────────────────────────────────────────────────────────────────────
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -178,14 +179,28 @@ DEFAULT_TOP_N_PICKER = 5
 # it (combined multi-rule HTMLs); single-rule summaries skip it gracefully via
 # the "if c in summary.columns" filter.
 _CORE_COLS: list[str] = [
-    "scheme", "n_aliases", "sizing_rule",
-    "oos_sharpe", "oos_cagr", "oos_max_dd", "oos_calmar",
-    "oos_sortino", "oos_vol_ann", "oos_end_value",
+    "scheme",
+    "n_aliases",
+    "sizing_rule",
+    "oos_sharpe",
+    "oos_cagr",
+    "oos_max_dd",
+    "oos_calmar",
+    "oos_sortino",
+    "oos_vol_ann",
+    "oos_end_value",
     "full_sharpe",
-    "ir_vs_spy", "alpha_ann", "beta", "excess_cagr",
+    "ir_vs_spy",
+    "alpha_ann",
+    "beta",
+    "excess_cagr",
     "n_trades",
-    "mean_enb", "max_hhi", "cap_bound_rate",
-    "p95_entry_pct_cash", "max_entry_pct_cash", "n_too_small",
+    "mean_enb",
+    "max_hhi",
+    "cap_bound_rate",
+    "p95_entry_pct_cash",
+    "max_entry_pct_cash",
+    "n_too_small",
 ]
 _GROUP_STARTS = {
     "oos_sharpe": "OOS",
@@ -246,11 +261,11 @@ def _tiebreak_key(scheme: str, deployed: str | None) -> tuple:
         if tail.isdigit():
             cap_val = int(tail)
     return (
-        scheme != deployed,   # False (=0) wins → deployed first
-        int(has_cap),         # 0 (no cap) wins → simpler concept
-        len(stripped),        # shorter wins
-        cap_val,              # lower cap wins
-        scheme,               # alpha
+        scheme != deployed,  # False (=0) wins → deployed first
+        int(has_cap),  # 0 (no cap) wins → simpler concept
+        len(stripped),  # shorter wins
+        cap_val,  # lower cap wins
+        scheme,  # alpha
     )
 
 
@@ -330,7 +345,9 @@ def _inline_assets() -> tuple[str, str]:
 
 
 def _sparkline_svg(
-    eq: pd.Series, width: int = 110, height: int = 26,
+    eq: pd.Series,
+    width: int = 110,
+    height: int = 26,
 ) -> str:
     if eq is None or len(eq) < 2:
         return ""
@@ -345,10 +362,7 @@ def _sparkline_svg(
         y = height - 1 - (v - lo) / (hi - lo) * (height - 2)
         points.append(f"{x:.1f},{y:.1f}")
     color = "#3fb950" if vals[-1] >= vals[0] else "#ef5350"
-    fill = (
-        "rgba(63,185,80,0.18)" if vals[-1] >= vals[0]
-        else "rgba(239,83,80,0.18)"
-    )
+    fill = "rgba(63,185,80,0.18)" if vals[-1] >= vals[0] else "rgba(239,83,80,0.18)"
     area = points + [f"{width - 1:.1f},{height - 1:.1f}", f"1,{height - 1:.1f}"]
     return (
         f'<svg width="{width}" height="{height}" '
@@ -362,28 +376,48 @@ def _sparkline_svg(
 
 
 _COMPACT_PCT_DEC = {
-    "oos_cagr", "oos_max_dd", "oos_vol_ann", "alpha_ann", "excess_cagr",
+    "oos_cagr",
+    "oos_max_dd",
+    "oos_vol_ann",
+    "alpha_ann",
+    "excess_cagr",
     "cap_bound_rate",
 }
 _COMPACT_NUM3 = {
-    "oos_sharpe", "oos_calmar", "oos_sortino", "full_sharpe",
-    "ir_vs_spy", "beta",
-    "mean_enb", "max_hhi",
+    "oos_sharpe",
+    "oos_calmar",
+    "oos_sortino",
+    "full_sharpe",
+    "ir_vs_spy",
+    "beta",
+    "mean_enb",
+    "max_hhi",
 }
 _COMPACT_MONEY = {"oos_end_value"}
 _COMPACT_INT = {"n_trades", "n_too_small", "n_aliases"}
 _COMPACT_NUM2 = {"p95_entry_pct_cash", "max_entry_pct_cash"}
 _COMPACT_HEADERS = {
-    "scheme": "Scheme", "n_aliases": "≡", "sizing_rule": "Sizing rule",
-    "oos_sharpe": "Sharpe", "oos_cagr": "CAGR", "oos_max_dd": "MaxDD",
-    "oos_calmar": "Calmar", "oos_sortino": "Sortino", "oos_vol_ann": "Vol",
+    "scheme": "Scheme",
+    "n_aliases": "≡",
+    "sizing_rule": "Sizing rule",
+    "oos_sharpe": "Sharpe",
+    "oos_cagr": "CAGR",
+    "oos_max_dd": "MaxDD",
+    "oos_calmar": "Calmar",
+    "oos_sortino": "Sortino",
+    "oos_vol_ann": "Vol",
     "oos_end_value": "End $",
     "full_sharpe": "Sharpe",
-    "ir_vs_spy": "IR", "alpha_ann": "Alpha", "beta": "Beta",
+    "ir_vs_spy": "IR",
+    "alpha_ann": "Alpha",
+    "beta": "Beta",
     "excess_cagr": "ΔCAGR",
     "n_trades": "Trades",
-    "mean_enb": "ENB", "max_hhi": "max HHI", "cap_bound_rate": "Cap %",
-    "p95_entry_pct_cash": "p95 ent%", "max_entry_pct_cash": "max ent%",
+    "mean_enb": "ENB",
+    "max_hhi": "max HHI",
+    "cap_bound_rate": "Cap %",
+    "p95_entry_pct_cash": "p95 ent%",
+    "max_entry_pct_cash": "max ent%",
     "n_too_small": "TooSm",
 }
 
@@ -421,6 +455,7 @@ def _compact_table_html(
     spy_eq: pd.Series | None,
     oos_start: pd.Timestamp,
     ir_floor: float = 0.0,
+    bench_label: str = "SPY",
 ) -> str:
     # Drop rows with IR vs SPY below ``ir_floor`` (2026-05-18; ir_floor param
     # added 2026-05-22). Schemes that underperform SPY on the information-
@@ -449,14 +484,19 @@ def _compact_table_html(
         cls = "group-start" if c in _GROUP_STARTS else ""
         label = _COMPACT_HEADERS.get(c, c.replace("_", " "))
         data_type = (
-            "money" if c in _COMPACT_MONEY
-            else "pct" if c in _COMPACT_PCT_DEC
-            else "num" if c in (_COMPACT_NUM3 | _COMPACT_INT)
+            "money"
+            if c in _COMPACT_MONEY
+            else "pct"
+            if c in _COMPACT_PCT_DEC
+            else "num"
+            if c in (_COMPACT_NUM3 | _COMPACT_INT)
             else "text"
         )
+        _glabel = _GROUP_STARTS.get(c, "")
+        if c == "ir_vs_spy" and bench_label != "SPY":
+            _glabel = f"vs {bench_label}"
         group_label = (
-            f"<div class='group-label'>{_GROUP_STARTS[c]}</div>"
-            if c in _GROUP_STARTS else ""
+            f"<div class='group-label'>{_glabel}</div>" if c in _GROUP_STARTS else ""
         )
         head_cells.append(
             f"<th data-col='{c}' data-type='{data_type}' "
@@ -503,13 +543,12 @@ def _compact_table_html(
         else:
             eq = equity_by_scheme.get(scheme)
             spark_eq = (
-                eq.loc[eq.index >= oos_start] if eq is not None
+                eq.loc[eq.index >= oos_start]
+                if eq is not None
                 else pd.Series(dtype=float)
             )
         spark = _sparkline_svg(spark_eq, width=110, height=26)
-        spark_sort_val = (
-            float(spark_eq.iloc[-1]) if not spark_eq.empty else 0.0
-        )
+        spark_sort_val = float(spark_eq.iloc[-1]) if not spark_eq.empty else 0.0
         cells.append(
             f"<td data-val='{spark_sort_val}' class='group-start spark-cell'>"
             f"{spark}</td>"
@@ -525,7 +564,7 @@ def _compact_table_html(
 
     body_rows = []
     if spy_row is not None:
-        body_rows.append(_build_row("SPY", spy_row, is_spy=True))
+        body_rows.append(_build_row(bench_label, spy_row, is_spy=True))
     for _, r in summary.iterrows():
         body_rows.append(_build_row(r["scheme"], dict(r), is_spy=False))
     body = "<tbody>" + "\n".join(body_rows) + "</tbody>"
@@ -579,9 +618,9 @@ def _compact_table_html(
     note = (
         f"<span class='section-note' style='color:var(--text-muted); "
         f"font-size:0.82rem; margin-left:0.6rem;'>"
-        f"filter: <code>IR vs SPY &ge; 0</code> &mdash; "
+        f"filter: <code>IR vs {bench_label} &ge; 0</code> &mdash; "
         f"{n_after_filter} of {n_before_filter} rows shown "
-        f"(SPY pinned)</span>"
+        f"({bench_label} pinned)</span>"
     )
     return (
         f"{style}{note}<div class='compact-tbl-wrap'>"
@@ -638,38 +677,54 @@ def _metric_card(label: str, value: str, tone: str = "") -> str:
 
 
 def _kpi_block(
-    scheme_name: str, base_oos: dict, ext_oos: dict, vs_oos: dict,
-    n_total_schemes: int, seed_nav: float, n_tickers: int,
+    scheme_name: str,
+    base_oos: dict,
+    ext_oos: dict,
+    vs_oos: dict,
+    n_total_schemes: int,
+    seed_nav: float,
+    n_tickers: int,
+    bench_label: str = "SPY",
 ) -> str:
     return (
         "<div class='kpi-grid'>"
         + _kpi_card(
-            "Selected scheme", scheme_name, "accent",
+            "Selected scheme",
+            scheme_name,
+            "accent",
             f"out of {n_total_schemes} by OOS Sharpe",
         )
         + _kpi_card(
-            "OOS Sharpe", _fmt_num(base_oos.get("sharpe", float("nan")), 3),
+            "OOS Sharpe",
+            _fmt_num(base_oos.get("sharpe", float("nan")), 3),
             _tone_for_metric("sharpe", base_oos.get("sharpe", 0)),
             f"PSR = {_fmt_num(ext_oos.get('probabilistic_sharpe', float('nan')), 3)}",
         )
         + _kpi_card(
-            "OOS CAGR", _fmt_pct(base_oos.get("cagr", float("nan"))),
+            "OOS CAGR",
+            _fmt_pct(base_oos.get("cagr", float("nan"))),
             "pos" if base_oos.get("cagr", 0) > 0 else "neg",
-            f"vs SPY excess: {_fmt_pct(vs_oos.get('excess_cagr', float('nan')))}",
+            f"vs {bench_label} excess: "
+            f"{_fmt_pct(vs_oos.get('excess_cagr', float('nan')))}",
         )
         + _kpi_card(
-            "OOS MaxDD", _fmt_pct(base_oos.get("max_dd", float("nan"))), "neg",
+            "OOS MaxDD",
+            _fmt_pct(base_oos.get("max_dd", float("nan"))),
+            "neg",
             f"Calmar {_fmt_num(base_oos.get('calmar', float('nan')), 2)}"
             f" · Ulcer {_fmt_num(base_oos.get('ulcer', float('nan')), 2)}",
         )
         + _kpi_card(
-            "IR vs SPY", _fmt_num(vs_oos.get("ir_vs_spy", float("nan")), 3),
+            f"IR vs {bench_label}",
+            _fmt_num(vs_oos.get("ir_vs_spy", float("nan")), 3),
             "pos" if vs_oos.get("ir_vs_spy", 0) > 0 else "neg",
             f"α(ann)={_fmt_pct(vs_oos.get('alpha_ann', float('nan')))}"
             f" · β={_fmt_num(vs_oos.get('beta', float('nan')), 2)}",
         )
         + _kpi_card(
-            "Cohort", f"{n_tickers:,}", "muted",
+            "Cohort",
+            f"{n_tickers:,}",
+            "muted",
             f"seed NAV ${seed_nav:,.0f}",
         )
         + "</div>"
@@ -677,7 +732,11 @@ def _kpi_block(
 
 
 def _metrics_block(
-    base: dict, extra: dict, vs_b: dict, extra_b: dict,
+    base: dict,
+    extra: dict,
+    vs_b: dict,
+    extra_b: dict,
+    bench_label: str = "SPY",
 ) -> str:
     groups: list[tuple[str, list[tuple[str, str, str]]]] = []
 
@@ -690,80 +749,122 @@ def _metrics_block(
     def int_(k, v):
         return (k, f"{int(v) if pd.notna(v) else 0:,}", "")
 
-    groups.append(("Returns", [
-        pct("CAGR", base.get("cagr", float("nan"))),
-        pct("Total Ret", extra.get("total_return", float("nan"))),
-        pct("Best day", extra.get("best_day", float("nan"))),
-        pct("Worst day", extra.get("worst_day", float("nan"))),
-        pct("Avg win", extra.get("avg_win", float("nan"))),
-        pct("Avg loss", extra.get("avg_loss", float("nan"))),
-        pct("Avg return", extra.get("avg_return", float("nan"))),
-        pct("Geo mean", extra.get("geometric_mean", float("nan"))),
-        pct("RAR", extra.get("rar", float("nan"))),
-    ]))
-    groups.append(("Ratios", [
-        num3("Sharpe", base.get("sharpe", float("nan"))),
-        num3("Smart Sharpe", extra.get("smart_sharpe", float("nan"))),
-        num3("Sortino", base.get("sortino", float("nan"))),
-        num3("Smart Sortino", extra.get("smart_sortino", float("nan"))),
-        num3("Adj Sortino", extra.get("adjusted_sortino", float("nan"))),
-        num3("Calmar", base.get("calmar", float("nan"))),
-        num3("Omega", extra.get("omega", float("nan"))),
-        num3("Martin", base.get("martin", float("nan"))),
-        num3("UPI", extra.get("upi", float("nan"))),
-        num3("Serenity", extra.get("serenity_index", float("nan"))),
-        num3("Gain-to-Pain", extra.get("gain_to_pain", float("nan"))),
-        num3("Risk-Ret Ratio", extra.get("risk_return_ratio", float("nan"))),
-        num3("Payoff", extra.get("payoff_ratio", float("nan"))),
-        num3("Win/Loss", extra.get("win_loss_ratio", float("nan"))),
-        num3("CPC Index", extra.get("cpc_index", float("nan"))),
-        num3("Common-Sense", extra.get("common_sense_ratio", float("nan"))),
-        num3("Recovery", extra.get("recovery_factor", float("nan"))),
-    ]))
-    groups.append(("Risk / Tail", [
-        pct("Max DD", base.get("max_dd", float("nan"))),
-        pct("Ann Vol", base.get("vol_ann", float("nan")), sign=False),
-        pct("VaR 95%", extra.get("var_95", float("nan"))),
-        pct("VaR 99%", extra.get("var_99", float("nan"))),
-        pct("CVaR 95%", extra.get("cvar_95", float("nan"))),
-        pct("CVaR 99%", extra.get("cvar_99", float("nan"))),
-        num3("Tail ratio", extra.get("tail_ratio", float("nan")), dp=2),
-        num3("Outlier W", extra.get("outlier_win_ratio", float("nan")), dp=2),
-        num3("Outlier L", extra.get("outlier_loss_ratio", float("nan")), dp=2),
-        num3("Skew", base.get("skew", float("nan")), dp=2),
-        num3("Kurtosis", base.get("kurtosis", float("nan")), dp=2),
-        num3("Ulcer", base.get("ulcer", float("nan")), dp=2),
-        num3("Stability", extra.get("stability_of_timeseries", float("nan")), dp=3),
-        num3("Autocorr", extra.get("autocorr_lag1", float("nan")), dp=3),
-        int_("DD duration (d)", base.get("max_dd_duration_days", 0)),
-    ]))
-    groups.append(("Probabilistic", [
-        num3("PSR", extra.get("probabilistic_sharpe", float("nan")), dp=3),
-        num3("P-Sortino", extra.get("probabilistic_sortino", float("nan")), dp=3),
-        num3("P-AdjSortino", extra.get("probabilistic_adj_sortino", float("nan")), dp=3),
-    ]))
-    groups.append(("Trade proxies", [
-        pct("Win rate", extra.get("win_rate", float("nan")), sign=False),
-        pct("Hit rate", base.get("hit_rate", float("nan")), sign=False),
-        num3("Profit Factor", extra.get("profit_factor", float("nan")), dp=2),
-        num3("Profit Ratio", extra.get("profit_ratio", float("nan")), dp=3),
-        num3("Kelly", extra.get("kelly_criterion", float("nan")), dp=3),
-        num3("Risk of Ruin", extra.get("risk_of_ruin", float("nan")), dp=4),
-        int_("Cons. Wins", extra.get("consecutive_wins", 0)),
-        int_("Cons. Losses", extra.get("consecutive_losses", 0)),
-    ]))
-    groups.append(("Vs Benchmark", [
-        pct("Alpha (ann)", vs_b.get("alpha_ann", float("nan"))),
-        num3("Beta", vs_b.get("beta", float("nan")), dp=3),
-        num3("IR vs SPY", vs_b.get("ir_vs_spy", float("nan"))),
-        pct("Tracking err", vs_b.get("tracking_error", float("nan")), sign=False),
-        num3("Correlation", vs_b.get("corr", float("nan")), dp=3),
-        num3("Up capture", vs_b.get("up_capture", float("nan")), dp=2),
-        num3("Down capture", vs_b.get("down_capture", float("nan")), dp=2),
-        pct("Excess CAGR", vs_b.get("excess_cagr", float("nan"))),
-        num3("Treynor", extra_b.get("treynor", float("nan")), dp=3),
-        num3("R²", extra_b.get("r_squared", float("nan")), dp=3),
-    ]))
+    groups.append(
+        (
+            "Returns",
+            [
+                pct("CAGR", base.get("cagr", float("nan"))),
+                pct("Total Ret", extra.get("total_return", float("nan"))),
+                pct("Best day", extra.get("best_day", float("nan"))),
+                pct("Worst day", extra.get("worst_day", float("nan"))),
+                pct("Avg win", extra.get("avg_win", float("nan"))),
+                pct("Avg loss", extra.get("avg_loss", float("nan"))),
+                pct("Avg return", extra.get("avg_return", float("nan"))),
+                pct("Geo mean", extra.get("geometric_mean", float("nan"))),
+                pct("RAR", extra.get("rar", float("nan"))),
+            ],
+        )
+    )
+    groups.append(
+        (
+            "Ratios",
+            [
+                num3("Sharpe", base.get("sharpe", float("nan"))),
+                num3("Smart Sharpe", extra.get("smart_sharpe", float("nan"))),
+                num3("Sortino", base.get("sortino", float("nan"))),
+                num3("Smart Sortino", extra.get("smart_sortino", float("nan"))),
+                num3("Adj Sortino", extra.get("adjusted_sortino", float("nan"))),
+                num3("Calmar", base.get("calmar", float("nan"))),
+                num3("Omega", extra.get("omega", float("nan"))),
+                num3("Martin", base.get("martin", float("nan"))),
+                num3("UPI", extra.get("upi", float("nan"))),
+                num3("Serenity", extra.get("serenity_index", float("nan"))),
+                num3("Gain-to-Pain", extra.get("gain_to_pain", float("nan"))),
+                num3("Risk-Ret Ratio", extra.get("risk_return_ratio", float("nan"))),
+                num3("Payoff", extra.get("payoff_ratio", float("nan"))),
+                num3("Win/Loss", extra.get("win_loss_ratio", float("nan"))),
+                num3("CPC Index", extra.get("cpc_index", float("nan"))),
+                num3("Common-Sense", extra.get("common_sense_ratio", float("nan"))),
+                num3("Recovery", extra.get("recovery_factor", float("nan"))),
+            ],
+        )
+    )
+    groups.append(
+        (
+            "Risk / Tail",
+            [
+                pct("Max DD", base.get("max_dd", float("nan"))),
+                pct("Ann Vol", base.get("vol_ann", float("nan")), sign=False),
+                pct("VaR 95%", extra.get("var_95", float("nan"))),
+                pct("VaR 99%", extra.get("var_99", float("nan"))),
+                pct("CVaR 95%", extra.get("cvar_95", float("nan"))),
+                pct("CVaR 99%", extra.get("cvar_99", float("nan"))),
+                num3("Tail ratio", extra.get("tail_ratio", float("nan")), dp=2),
+                num3("Outlier W", extra.get("outlier_win_ratio", float("nan")), dp=2),
+                num3("Outlier L", extra.get("outlier_loss_ratio", float("nan")), dp=2),
+                num3("Skew", base.get("skew", float("nan")), dp=2),
+                num3("Kurtosis", base.get("kurtosis", float("nan")), dp=2),
+                num3("Ulcer", base.get("ulcer", float("nan")), dp=2),
+                num3(
+                    "Stability",
+                    extra.get("stability_of_timeseries", float("nan")),
+                    dp=3,
+                ),
+                num3("Autocorr", extra.get("autocorr_lag1", float("nan")), dp=3),
+                int_("DD duration (d)", base.get("max_dd_duration_days", 0)),
+            ],
+        )
+    )
+    groups.append(
+        (
+            "Probabilistic",
+            [
+                num3("PSR", extra.get("probabilistic_sharpe", float("nan")), dp=3),
+                num3(
+                    "P-Sortino", extra.get("probabilistic_sortino", float("nan")), dp=3
+                ),
+                num3(
+                    "P-AdjSortino",
+                    extra.get("probabilistic_adj_sortino", float("nan")),
+                    dp=3,
+                ),
+            ],
+        )
+    )
+    groups.append(
+        (
+            "Trade proxies",
+            [
+                pct("Win rate", extra.get("win_rate", float("nan")), sign=False),
+                pct("Hit rate", base.get("hit_rate", float("nan")), sign=False),
+                num3("Profit Factor", extra.get("profit_factor", float("nan")), dp=2),
+                num3("Profit Ratio", extra.get("profit_ratio", float("nan")), dp=3),
+                num3("Kelly", extra.get("kelly_criterion", float("nan")), dp=3),
+                num3("Risk of Ruin", extra.get("risk_of_ruin", float("nan")), dp=4),
+                int_("Cons. Wins", extra.get("consecutive_wins", 0)),
+                int_("Cons. Losses", extra.get("consecutive_losses", 0)),
+            ],
+        )
+    )
+    groups.append(
+        (
+            "Vs Benchmark",
+            [
+                pct("Alpha (ann)", vs_b.get("alpha_ann", float("nan"))),
+                num3("Beta", vs_b.get("beta", float("nan")), dp=3),
+                num3(f"IR vs {bench_label}", vs_b.get("ir_vs_spy", float("nan"))),
+                pct(
+                    "Tracking err", vs_b.get("tracking_error", float("nan")), sign=False
+                ),
+                num3("Correlation", vs_b.get("corr", float("nan")), dp=3),
+                num3("Up capture", vs_b.get("up_capture", float("nan")), dp=2),
+                num3("Down capture", vs_b.get("down_capture", float("nan")), dp=2),
+                pct("Excess CAGR", vs_b.get("excess_cagr", float("nan"))),
+                num3("Treynor", extra_b.get("treynor", float("nan")), dp=3),
+                num3("R²", extra_b.get("r_squared", float("nan")), dp=3),
+            ],
+        )
+    )
 
     blocks = []
     for title, cards in groups:
@@ -787,15 +888,34 @@ def _metrics_block(
 
 # Stable div_ids used by the JS picker to find chart containers.
 _CHART_DIVS = [
-    "fig-snapshot", "fig-logeq", "fig-heat", "fig-annual",          # Tab 2
-    "fig-uw", "fig-dd-hl",                                          # Tab 3
-    "fig-rs", "fig-rso", "fig-rv", "fig-rb",                        # Tab 4
-    "fig-hist", "fig-box", "fig-kde",                               # Tab 5
-    "fig-reg", "fig-cumxs", "fig-rcorr", "fig-cap", "fig-decile",   # Tab 6
-    "fig-cone", "fig-pbox", "fig-mc",                               # Tab 7
-    "fig-stress",                                                   # Tab 8
-    "fig-rt-life", "fig-pnl-dist", "fig-hold", "fig-exit-rsn",      # Tab 9 Trades
-    "fig-mae-mfe", "fig-sym-pnl",                                   # Tab 9 cont.
+    "fig-snapshot",
+    "fig-logeq",
+    "fig-heat",
+    "fig-annual",  # Tab 2
+    "fig-uw",
+    "fig-dd-hl",  # Tab 3
+    "fig-rs",
+    "fig-rso",
+    "fig-rv",
+    "fig-rb",  # Tab 4
+    "fig-hist",
+    "fig-box",
+    "fig-kde",  # Tab 5
+    "fig-reg",
+    "fig-cumxs",
+    "fig-rcorr",
+    "fig-cap",
+    "fig-decile",  # Tab 6
+    "fig-cone",
+    "fig-pbox",
+    "fig-mc",  # Tab 7
+    "fig-stress",  # Tab 8
+    "fig-rt-life",
+    "fig-pnl-dist",
+    "fig-hold",
+    "fig-exit-rsn",  # Tab 9 Trades
+    "fig-mae-mfe",
+    "fig-sym-pnl",  # Tab 9 cont.
 ]
 
 # div_id → owning tab-content id. Drives lazy-render: when the picker
@@ -804,31 +924,79 @@ _CHART_DIVS = [
 # 50-scheme reports freeze the browser on switch (14 Plotly.react calls
 # per switch × every chart, including hidden tabs).
 _DIV_TO_TAB = {
-    "fig-snapshot": "t_quantstats", "fig-logeq": "t_quantstats",
-    "fig-heat": "t_quantstats", "fig-annual": "t_quantstats",
-    "fig-uw": "t_risk", "fig-dd-hl": "t_risk",
-    "fig-rs": "t_rolling", "fig-rso": "t_rolling",
-    "fig-rv": "t_rolling", "fig-rb": "t_rolling",
-    "fig-hist": "t_distribution", "fig-box": "t_distribution",
+    "fig-snapshot": "t_quantstats",
+    "fig-logeq": "t_quantstats",
+    "fig-heat": "t_quantstats",
+    "fig-annual": "t_quantstats",
+    "fig-uw": "t_risk",
+    "fig-dd-hl": "t_risk",
+    "fig-rs": "t_rolling",
+    "fig-rso": "t_rolling",
+    "fig-rv": "t_rolling",
+    "fig-rb": "t_rolling",
+    "fig-hist": "t_distribution",
+    "fig-box": "t_distribution",
     "fig-kde": "t_distribution",
-    "fig-reg": "t_benchmark", "fig-cumxs": "t_benchmark",
-    "fig-rcorr": "t_benchmark", "fig-cap": "t_benchmark",
+    "fig-reg": "t_benchmark",
+    "fig-cumxs": "t_benchmark",
+    "fig-rcorr": "t_benchmark",
+    "fig-cap": "t_benchmark",
     "fig-decile": "t_benchmark",
-    "fig-cone": "t_bootstrap", "fig-pbox": "t_bootstrap",
+    "fig-cone": "t_bootstrap",
+    "fig-pbox": "t_bootstrap",
     "fig-mc": "t_bootstrap",
     "fig-stress": "t_stress",
-    "fig-rt-life": "t_trades", "fig-pnl-dist": "t_trades",
-    "fig-hold": "t_trades", "fig-exit-rsn": "t_trades",
-    "fig-mae-mfe": "t_trades", "fig-sym-pnl": "t_trades",
+    "fig-rt-life": "t_trades",
+    "fig-pnl-dist": "t_trades",
+    "fig-hold": "t_trades",
+    "fig-exit-rsn": "t_trades",
+    "fig-mae-mfe": "t_trades",
+    "fig-sym-pnl": "t_trades",
 }
-assert set(_DIV_TO_TAB) == set(_CHART_DIVS), (
-    "DIV_TO_TAB and _CHART_DIVS drifted — keep in sync"
-)
+assert set(_DIV_TO_TAB) == set(
+    _CHART_DIVS
+), "DIV_TO_TAB and _CHART_DIVS drifted — keep in sync"
+
+
+def _relabel_benchmark(fig, bench_label: str):
+    """Rename the benchmark trace + axis/title 'SPY' → ``bench_label`` in a plotly
+    figure. No-op when ``bench_label == 'SPY'`` (live-strategy reports unchanged).
+    Surgical: only the trace literally named 'SPY' is the benchmark line in these
+    figures (scheme traces carry the scheme label; holdings aren't plotted), so
+    renaming it cannot clobber a legitimate SPY-holding series."""
+    if fig is None or bench_label == "SPY":
+        return fig
+    for tr in getattr(fig, "data", []):
+        nm = getattr(tr, "name", None)
+        if nm and "SPY" in nm:
+            tr.name = nm.replace("SPY", bench_label)
+    lay = getattr(fig, "layout", None)
+    if lay is not None:
+        for ax in ("xaxis", "yaxis"):
+            axis = getattr(lay, ax, None)
+            title = getattr(axis, "title", None) if axis is not None else None
+            txt = getattr(title, "text", None) if title is not None else None
+            if txt and "SPY" in txt:
+                title.text = txt.replace("SPY", bench_label)
+        ttl = getattr(lay, "title", None)
+        ttxt = getattr(ttl, "text", None) if ttl is not None else None
+        if ttxt and "SPY" in ttxt:
+            ttl.text = ttxt.replace("SPY", bench_label)
+        for ann in getattr(lay, "annotations", None) or ():
+            atxt = getattr(ann, "text", None)
+            if atxt and "SPY" in atxt:
+                ann.text = atxt.replace("SPY", bench_label)
+    return fig
 
 
 def _build_scheme_payload(
-    r: SchemeResult, spy_eq: pd.Series | None, oos_start: pd.Timestamp,
-    seed_nav: float, n_tickers: int, n_total_schemes: int,
+    r: SchemeResult,
+    spy_eq: pd.Series | None,
+    oos_start: pd.Timestamp,
+    seed_nav: float,
+    n_tickers: int,
+    n_total_schemes: int,
+    bench_label: str = "SPY",
 ) -> tuple[dict[str, dict], dict[str, str]]:
     """Build (figures_json, html_fragments) for a single scheme."""
     base_oos = r.metrics_oos
@@ -861,18 +1029,24 @@ def _build_scheme_payload(
         "fig-box": returns_boxplot_figure(r.equity, "Return quantile boxplots"),
         "fig-kde": kde_vs_normal_figure(r.equity, "Daily-return KDE vs Normal"),
         "fig-reg": regression_scatter_figure(r.equity, spy_eq, label)
-        if spy_eq is not None else None,
+        if spy_eq is not None
+        else None,
         "fig-cumxs": cumulative_excess_figure(r.equity, spy_eq, label)
-        if spy_eq is not None else None,
+        if spy_eq is not None
+        else None,
         "fig-rcorr": rolling_correlation_figure(r.equity, spy_eq, label)
-        if spy_eq is not None else None,
+        if spy_eq is not None
+        else None,
         "fig-cap": up_down_capture_figure(r.equity, spy_eq, label)
-        if spy_eq is not None else None,
+        if spy_eq is not None
+        else None,
         "fig-decile": spy_decile_returns_figure(r.equity, spy_eq, label)
-        if spy_eq is not None else None,
+        if spy_eq is not None
+        else None,
         "fig-cone": forecast_cone_figure(r.equity, label),
         "fig-pbox": perf_stats_box_figure(
-            r.equity, "Bootstrap perf-stats — 2000 resamples",
+            r.equity,
+            "Bootstrap perf-stats — 2000 resamples",
         ),
         "fig-mc": monte_carlo_paths_figure(r.equity, label),
         "fig-stress": stress_grid_figure(r.equity, spy_eq, label),
@@ -884,23 +1058,35 @@ def _build_scheme_payload(
         "fig-sym-pnl": per_symbol_pnl_bar_figure(trades_df),
     }
     figures_json: dict[str, dict] = {
-        k: pio.to_json(fig, validate=False) for k, fig in figs.items()
+        k: pio.to_json(_relabel_benchmark(fig, bench_label), validate=False)
+        for k, fig in figs.items()
         if fig is not None
     }
 
     # ---- HTML fragments (per-scheme) ----
     kpi_html = _kpi_block(
-        label, base_oos, ext_oos, vs_oos, n_total_schemes, seed_nav, n_tickers,
+        label,
+        base_oos,
+        ext_oos,
+        vs_oos,
+        n_total_schemes,
+        seed_nav,
+        n_tickers,
+        bench_label=bench_label,
     )
-    metrics_html = _metrics_block(base_oos, ext_oos, vs_oos, ext_vs)
+    metrics_html = _metrics_block(
+        base_oos, ext_oos, vs_oos, ext_vs, bench_label=bench_label
+    )
     dd_table = drawdown_table_html(r.equity)
-    stress_tbl = stress_table_html(r.equity, spy_eq)
+    stress_tbl = stress_table_html(r.equity, spy_eq, bench_label=bench_label)
     if r.state.daily_snapshot:
         # Strip rule-tag prefix (e.g. "seq__roll_calmar_cap20" → "roll_calmar_cap20")
         # before passing to scheme_per_name_cap, which only knows unprefixed names.
         cap = scheme_per_name_cap(_strip_rule_tag(label), DEFAULT_PER_NAME_CAP)
         cash_mob = cash_mobilization_overlay(
-            r, cohort_size=n_tickers, per_name_cap=cap,
+            r,
+            cohort_size=n_tickers,
+            per_name_cap=cap,
             div_id=f"fig-cash-{label}",
         )
     else:
@@ -941,6 +1127,7 @@ def build_mega_html(
     sizing_rule: str,
     deployed_scheme: str | None = None,
     bh_label: str | None = None,
+    bench_label: str = "SPY",
     top_n_picker: int | None = DEFAULT_TOP_N_PICKER,
     exclude_cf_family: bool = True,
     dedup_duplicates: bool = True,
@@ -976,7 +1163,10 @@ def build_mega_html(
 
     n_in = len(summary)
     summary, results, _aliases = _filter_and_dedup(
-        summary, results, oos_start, deployed_scheme,
+        summary,
+        results,
+        oos_start,
+        deployed_scheme,
         exclude_cf_family=exclude_cf_family,
         dedup_duplicates=dedup_duplicates,
     )
@@ -991,7 +1181,9 @@ def build_mega_html(
         )
 
     summary_sorted = summary.sort_values(
-        "oos_sharpe", ascending=False, na_position="last",
+        "oos_sharpe",
+        ascending=False,
+        na_position="last",
     ).reset_index(drop=True)
     top3 = set(summary_sorted["scheme"].head(3).tolist())
 
@@ -1006,9 +1198,7 @@ def build_mega_html(
     if spy_eq is not None and len(spy_eq) > 0:
         spy_oos = spy_eq.loc[spy_eq.index >= oos_start]
         if len(spy_oos) >= 30 and float(spy_oos.iloc[0]) > 0:
-            spy_oos_rebased = (
-                spy_oos / float(spy_oos.iloc[0]) * seed_nav
-            )
+            spy_oos_rebased = spy_oos / float(spy_oos.iloc[0]) * seed_nav
             spy_metrics = equity_metrics(spy_oos_rebased)
             spy_oos_sr = float(spy_metrics.get("sharpe", float("nan")))
             spy_oos_end = float(spy_metrics.get("end_value", float("nan")))
@@ -1021,9 +1211,7 @@ def build_mega_html(
         ev = row.get("oos_end_value")
         if pd.isna(sr) or pd.isna(ir) or pd.isna(ev):
             return False
-        return (float(sr) > spy_oos_sr
-                and float(ir) > 0.0
-                and float(ev) > spy_oos_end)
+        return float(sr) > spy_oos_sr and float(ir) > 0.0 and float(ev) > spy_oos_end
 
     n_total_results = len(summary_sorted)
     cap = top_n_picker if top_n_picker is not None else n_total_results
@@ -1033,7 +1221,7 @@ def build_mega_html(
         if n_pass == 0:
             top_pick = summary_sorted["scheme"].head(cap).tolist()
             picker_banner = (
-                f"⚠️ no schemes beat SPY on the composite "
+                f"⚠️ no schemes beat {bench_label} on the composite "
                 f"(OOS Sharpe > {spy_oos_sr:.3f}, IR > 0, "
                 f"OOS end-value > ${spy_oos_end:,.0f}) — "
                 f"picker showing top-{len(top_pick)} by OOS Sharpe as fallback."
@@ -1043,7 +1231,7 @@ def build_mega_html(
             top_pick = beat_schemes[:cap]
             picker_banner = (
                 f"✓ picker filtered to {len(top_pick)} of {n_pass} schemes "
-                f"that beat SPY (OOS Sharpe > {spy_oos_sr:.3f}, IR > 0, "
+                f"that beat {bench_label} (OOS Sharpe > {spy_oos_sr:.3f}, IR > 0, "
                 f"OOS end-value > ${spy_oos_end:,.0f}); capped at "
                 f"top_n_picker={cap}."
             )
@@ -1065,8 +1253,13 @@ def build_mega_html(
         if r is None:
             continue
         figs_json, frags = _build_scheme_payload(
-            r, spy_eq, oos_start, seed_nav, n_tickers,
+            r,
+            spy_eq,
+            oos_start,
+            seed_nav,
+            n_tickers,
             n_total_schemes=len(summary_sorted),
+            bench_label=bench_label,
         )
         scheme_figs[name] = figs_json
         scheme_frags[name] = frags
@@ -1085,16 +1278,28 @@ def build_mega_html(
     core_cols = [c for c in _CORE_COLS if c in summary_sorted.columns]
     compact = summary_sorted[core_cols]
     spy_row_full = spy_summary_row(
-        spy_eq, oos_start, list(summary_sorted.columns), seed_nav=seed_nav,
+        spy_eq,
+        oos_start,
+        list(summary_sorted.columns),
+        seed_nav=seed_nav,
     )
     spy_row_core = (
         {c: spy_row_full.get(c) for c in core_cols}
-        if spy_row_full is not None else None
+        if spy_row_full is not None
+        else None
     )
+    if spy_row_core is not None and "scheme" in spy_row_core:
+        spy_row_core["scheme"] = bench_label  # pinned benchmark row label
     equity_by_scheme = {r.scheme: r.equity for r in results}
     table_html = _compact_table_html(
-        compact, top3, spy_row_core, equity_by_scheme, spy_eq, oos_start,
+        compact,
+        top3,
+        spy_row_core,
+        equity_by_scheme,
+        spy_eq,
+        oos_start,
         ir_floor=ir_floor,
+        bench_label=bench_label,
     )
 
     if bh_label is None:
@@ -1102,19 +1307,36 @@ def build_mega_html(
 
     # ---- Tab 1 multi-scheme overlays (scheme-independent) ----
     eq_full = equity_overlay(
-        results, top_pick, spy_eq, bh_eq, oos_start,
-        f"Equity — full period — top {len(top_pick)} by OOS Sharpe + SPY + {bh_label}",
-        bh_label=bh_label, div_id="fig-eq-full-v2",
+        results,
+        top_pick,
+        spy_eq,
+        bh_eq,
+        oos_start,
+        f"Equity — full period — top {len(top_pick)} by OOS Sharpe "
+        f"+ {bench_label} + {bh_label}",
+        bh_label=bh_label,
+        spy_label=bench_label,
+        div_id="fig-eq-full-v2",
     )
     eq_oos = equity_overlay(
-        results, top_pick, spy_eq, bh_eq, oos_start,
+        results,
+        top_pick,
+        spy_eq,
+        bh_eq,
+        oos_start,
         f"Equity — OOS only ({oos_start.date()}+, rebased ${seed_nav:,.0f})",
-        bh_label=bh_label, window_start=oos_start, rebase_to=seed_nav,
+        bh_label=bh_label,
+        spy_label=bench_label,
+        window_start=oos_start,
+        rebase_to=seed_nav,
         div_id="fig-eq-oos-v2",
     )
     dd_full = drawdown_overlay(
-        results, top_pick, spy_eq,
-        f"Drawdown — full period — top {len(top_pick)} by OOS Sharpe vs SPY",
+        results,
+        top_pick,
+        spy_eq,
+        f"Drawdown — full period — top {len(top_pick)} by OOS Sharpe vs {bench_label}",
+        spy_label=bench_label,
         div_id="fig-dd-full-v2",
     )
 
@@ -1122,9 +1344,10 @@ def build_mega_html(
     cohort_corr = scheme_correlation_heatmap_html(
         equity_by_scheme,
         "Cross-scheme daily return correlation "
-        "(SPY + Buy-Hold + top 30 by OOS Sharpe)",
+        f"({bench_label} + Buy-Hold + top 30 by OOS Sharpe)",
         "fig-cohort-corr-v2",
-        benchmark_eq=spy_eq, bh_eq=bh_eq,
+        benchmark_eq=spy_eq,
+        bh_eq=bh_eq,
     )
 
     # ---- Helper to wrap a fragment as a per-scheme div block ----
@@ -1193,7 +1416,8 @@ def build_mega_html(
         f"border-left:3px solid var(--accent); "
         f"border-radius:var(--radius-sm); font-size:0.85rem; "
         f"color:var(--text);'>{picker_banner}</div>"
-        if picker_banner else ""
+        if picker_banner
+        else ""
     )
 
     # ---- Tab content builders ----
@@ -1205,7 +1429,7 @@ def build_mega_html(
     <div class='section'>
       <div class='section-header'><h2 class='section-title'>
       <span class='idx'>§</span>Scheme comparison</h2>
-      <span class='section-note'>{len(summary_sorted)} schemes · sortable · SPY pinned</span></div>
+      <span class='section-note'>{len(summary_sorted)} schemes · sortable · {bench_label} pinned</span></div>
       {table_html}
     </div>
     <div class='section'>
@@ -1246,9 +1470,9 @@ def build_mega_html(
         _chart_section("Underwater — % below peak", "fig-uw")
         + _chart_section("Top-5 drawdowns highlighted", "fig-dd-hl")
         + f"<div class='section'><div class='section-header'>"
-          f"<h2 class='section-title'><span class='idx'>§</span>"
-          f"Drawdown periods — peak → valley → recovery</h2></div>"
-          f"{_frag_block('dd_table')}</div>"
+        f"<h2 class='section-title'><span class='idx'>§</span>"
+        f"Drawdown periods — peak → valley → recovery</h2></div>"
+        f"{_frag_block('dd_table')}</div>"
     )
     tab4 = """
     <div class='chart-row'>
@@ -1270,16 +1494,18 @@ def build_mega_html(
         + _chart_section("Daily-return KDE vs Normal", "fig-kde")
     )
     tab6 = (
-        _chart_section("Cumulative return — strategy + SPY + excess", "fig-cumxs")
-        + _chart_section("Regression vs SPY (α / β / R²)", "fig-reg")
-        + _chart_section("Rolling 252-bar correlation vs SPY", "fig-rcorr")
+        _chart_section(
+            f"Cumulative return — strategy + {bench_label} + excess", "fig-cumxs"
+        )
+        + _chart_section(f"Regression vs {bench_label} (α / β / R²)", "fig-reg")
+        + _chart_section(f"Rolling 252-bar correlation vs {bench_label}", "fig-rcorr")
         + "<div class='chart-row'>"
-          "<div class='chart-panel'><div class='chart-body'>"
-          "<div id='fig-cap' style='width:100%;min-height:380px'></div>"
-          "</div></div>"
-          "<div class='chart-panel'><div class='chart-body'>"
-          "<div id='fig-decile' style='width:100%;min-height:380px'></div>"
-          "</div></div></div>"
+        "<div class='chart-panel'><div class='chart-body'>"
+        "<div id='fig-cap' style='width:100%;min-height:380px'></div>"
+        "</div></div>"
+        "<div class='chart-panel'><div class='chart-body'>"
+        "<div id='fig-decile' style='width:100%;min-height:380px'></div>"
+        "</div></div></div>"
     )
     tab7 = (
         _chart_section("Forecast cone — 5000 bootstrap paths", "fig-cone")
@@ -1293,10 +1519,12 @@ def build_mega_html(
     tab9 = (
         f"<div class='section'>{_frag_block('trades_kpi')}</div>"
         + f"<div class='section'><div class='section-header'>"
-          f"<h2 class='section-title'><span class='idx'>§</span>"
-          f"Per exit-reason summary</h2></div>"
-          f"{_frag_block('trades_table')}</div>"
-        + _chart_section("Round-trip lifetimes (size = |$ PnL|, color = win/loss)", "fig-rt-life")
+        f"<h2 class='section-title'><span class='idx'>§</span>"
+        f"Per exit-reason summary</h2></div>"
+        f"{_frag_block('trades_table')}</div>"
+        + _chart_section(
+            "Round-trip lifetimes (size = |$ PnL|, color = win/loss)", "fig-rt-life"
+        )
         + "<div class='chart-row'>"
         + "<div class='chart-panel'><div class='chart-body'>"
         + "<div id='fig-pnl-dist' style='width:100%;min-height:380px'></div>"
@@ -1313,10 +1541,10 @@ def build_mega_html(
         + "</div></div></div>"
         + _chart_section("Per-symbol PnL (top + bottom 25)", "fig-sym-pnl")
         + f"<div class='section'><div class='section-header'>"
-          f"<h2 class='section-title'><span class='idx'>§</span>"
-          f"All individual trades</h2>"
-          f"<span class='section-note'>sortable headers · type to filter</span>"
-          f"</div>{_frag_block('trades_full')}</div>"
+        f"<h2 class='section-title'><span class='idx'>§</span>"
+        f"All individual trades</h2>"
+        f"<span class='section-note'>sortable headers · type to filter</span>"
+        f"</div>{_frag_block('trades_full')}</div>"
     )
     tab10 = f"""
     <div class='section'>
@@ -1333,8 +1561,11 @@ def build_mega_html(
 
     # ---- Picker JS payload ----
     figs_payload = {
-        div_id: {sch: scheme_figs[sch][div_id] for sch in picker_options
-                 if div_id in scheme_figs[sch]}
+        div_id: {
+            sch: scheme_figs[sch][div_id]
+            for sch in picker_options
+            if div_id in scheme_figs[sch]
+        }
         for div_id in _CHART_DIVS
     }
     figs_payload_json = (

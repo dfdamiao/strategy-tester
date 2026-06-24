@@ -2,6 +2,7 @@
 
 Exposes both *_figure() and *_html() builders.
 """
+
 from __future__ import annotations
 
 import pandas as pd
@@ -20,7 +21,11 @@ from strategy_tester.s5_replay.stress_windows import (
 
 
 def stress_grid_figure(
-    eq: pd.Series, bench_eq: pd.Series | None, label: str, cols: int = 5,
+    eq: pd.Series,
+    bench_eq: pd.Series | None,
+    label: str,
+    cols: int = 5,
+    bench_label: str = "SPY",
 ) -> go.Figure:
     """Small-multiples grid: one cum-return chart per named stress window."""
     valid: list[tuple[str, pd.Series, pd.Series | None]] = []
@@ -33,48 +38,71 @@ def stress_grid_figure(
 
     fig = go.Figure()
     if not valid:
-        fig.update_layout(**dark_layout(
-            "Stress windows (none overlap)", height=320,
-        ))
+        fig.update_layout(
+            **dark_layout(
+                "Stress windows (none overlap)",
+                height=320,
+            )
+        )
         return fig
 
     rows = (len(valid) + cols - 1) // cols
     titles = [v[0].replace("_", " ") for v in valid]
     fig = make_subplots(
-        rows=rows, cols=cols,
+        rows=rows,
+        cols=cols,
         subplot_titles=titles,
-        vertical_spacing=0.08, horizontal_spacing=0.04,
+        vertical_spacing=0.08,
+        horizontal_spacing=0.04,
     )
     for i, (_, s, b) in enumerate(valid):
         r, c = i // cols + 1, i % cols + 1
         cum = s / s.iloc[0] - 1
-        fig.add_trace(go.Scatter(
-            x=cum.index, y=cum.values * 100, mode="lines",
-            line=dict(color="#58a6ff", width=1.5),
-            showlegend=(i == 0), name=label,
-        ), row=r, col=c)
+        fig.add_trace(
+            go.Scatter(
+                x=cum.index,
+                y=cum.values * 100,
+                mode="lines",
+                line=dict(color="#58a6ff", width=1.5),
+                showlegend=(i == 0),
+                name=label,
+            ),
+            row=r,
+            col=c,
+        )
         if b is not None and len(b) >= 5:
             b_cum = b / b.iloc[0] - 1
-            fig.add_trace(go.Scatter(
-                x=b_cum.index, y=b_cum.values * 100, mode="lines",
-                line=dict(color="#ef5350", dash="dash", width=1.2),
-                showlegend=(i == 0), name="SPY",
-            ), row=r, col=c)
-        fig.add_hline(y=0, line=dict(color="#444", dash="dot", width=0.5),
-                      row=r, col=c)
+            fig.add_trace(
+                go.Scatter(
+                    x=b_cum.index,
+                    y=b_cum.values * 100,
+                    mode="lines",
+                    line=dict(color="#ef5350", dash="dash", width=1.2),
+                    showlegend=(i == 0),
+                    name="SPY",
+                ),
+                row=r,
+                col=c,
+            )
+        fig.add_hline(y=0, line=dict(color="#444", dash="dot", width=0.5), row=r, col=c)
 
     height = max(260 * rows, 320)
-    fig.update_layout(**dark_layout(
-        f"Stress windows — {len(valid)} of {len(WINDOWS)} overlap equity range",
-        height=height,
-    ))
+    fig.update_layout(
+        **dark_layout(
+            f"Stress windows — {len(valid)} of {len(WINDOWS)} overlap equity range",
+            height=height,
+        )
+    )
     fig.update_annotations(font_size=10)
     grid_axes_update(fig)
     return fig
 
 
 def stress_grid_html(
-    eq: pd.Series, bench_eq: pd.Series | None, label: str, div_id: str,
+    eq: pd.Series,
+    bench_eq: pd.Series | None,
+    label: str,
+    div_id: str,
     cols: int = 5,
 ) -> str:
     if eq.empty:
@@ -83,7 +111,9 @@ def stress_grid_html(
     return fig.to_html(full_html=False, include_plotlyjs=False, div_id=div_id)
 
 
-def stress_table_html(eq: pd.Series, bench_eq: pd.Series | None) -> str:
+def stress_table_html(
+    eq: pd.Series, bench_eq: pd.Series | None, bench_label: str = "SPY"
+) -> str:
     """Per-window cum-return / Sharpe / MaxDD table styled for quant-ui-kit."""
     df = window_stats(eq, bench_eq)
     if df.empty:
@@ -95,7 +125,7 @@ def stress_table_html(eq: pd.Series, bench_eq: pd.Series | None) -> str:
         "<th data-col='end' data-type='date' data-align='left'>End</th>"
         "<th data-col='bars' data-type='num' data-align='right'>Bars</th>"
         "<th data-col='ret' data-type='pct' data-align='right'>Cum Ret</th>"
-        "<th data-col='bench' data-type='pct' data-align='right'>SPY Ret</th>"
+        f"<th data-col='bench' data-type='pct' data-align='right'>{bench_label} Ret</th>"
         "<th data-col='excess' data-type='pct' data-align='right'>Excess</th>"
         "<th data-col='sharpe' data-type='num' data-align='right'>Sharpe</th>"
         "<th data-col='dd' data-type='pct' data-align='right'>Max DD</th>"
@@ -104,21 +134,19 @@ def stress_table_html(eq: pd.Series, bench_eq: pd.Series | None) -> str:
     rows = []
     for _, r in df.iterrows():
         tone_excess = (
-            "pos" if pd.notna(r["excess_return"]) and r["excess_return"] > 0
-            else "neg" if pd.notna(r["excess_return"]) and r["excess_return"] < 0
+            "pos"
+            if pd.notna(r["excess_return"]) and r["excess_return"] > 0
+            else "neg"
+            if pd.notna(r["excess_return"]) and r["excess_return"] < 0
             else "muted"
         )
         bench_cell = (
-            f"{r['bench_return'] * 100:+.2f}%"
-            if pd.notna(r["bench_return"]) else "—"
+            f"{r['bench_return'] * 100:+.2f}%" if pd.notna(r["bench_return"]) else "—"
         )
         excess_cell = (
-            f"{r['excess_return'] * 100:+.2f}%"
-            if pd.notna(r["excess_return"]) else "—"
+            f"{r['excess_return'] * 100:+.2f}%" if pd.notna(r["excess_return"]) else "—"
         )
-        sharpe_cell = (
-            f"{r['sharpe']:.2f}" if pd.notna(r["sharpe"]) else "—"
-        )
+        sharpe_cell = f"{r['sharpe']:.2f}" if pd.notna(r["sharpe"]) else "—"
         rows.append(
             f"<tr>"
             f"<td>{r['window'].replace('_', ' ')}</td>"
