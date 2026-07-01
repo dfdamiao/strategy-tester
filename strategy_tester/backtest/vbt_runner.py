@@ -2,6 +2,7 @@
 
 All functions are stateless — the caller provides the data.
 """
+
 from __future__ import annotations
 
 import warnings
@@ -11,7 +12,8 @@ import pandas as pd
 from scipy import stats
 
 warnings.filterwarnings(
-    "ignore", message="invalid value encountered",
+    "ignore",
+    message="invalid value encountered",
     category=RuntimeWarning,
 )
 
@@ -19,11 +21,13 @@ warnings.filterwarnings(
 def _import_vbt():
     """Import the stock vectorbt PyPI package."""
     import vectorbt as vbt
+
     return vbt
 
 
 def compute_ratio(
-    prices: pd.DataFrame, pair_row: dict,
+    prices: pd.DataFrame,
+    pair_row: dict,
 ) -> tuple[pd.Series, pd.Series, pd.Index]:
     """Compute ratio + num_prices for a pair, handling singles correctly.
 
@@ -46,9 +50,7 @@ def compute_ratio(
     if den not in prices.columns:
         raise KeyError(f"{den} not in prices")
 
-    common = prices[num].dropna().index.intersection(
-        prices[den].dropna().index
-    )
+    common = prices[num].dropna().index.intersection(prices[den].dropna().index)
     ratio = prices[num].loc[common] / prices[den].loc[common]
     return ratio, prices[num].loc[common], common
 
@@ -91,7 +93,9 @@ def zscore_slope(zscore: pd.Series, n: int = 2) -> pd.Series:
 
 
 def calculate_penalized_sharpe(
-    sharpe: float, n_params: int, n_trades: int,
+    sharpe: float,
+    n_params: int,
+    n_trades: int,
 ) -> float:
     """Penalized Sharpe: SR × sqrt(1 - n_params/n_trades). DoF shrinkage."""
     if n_trades < n_params or n_trades == 0:
@@ -103,8 +107,20 @@ def calculate_penalized_sharpe(
 def build_is_oos_split(
     common_idx: pd.Index,
     ratio: float = 0.80,
+    *,
+    cutoff: pd.Timestamp | None = None,
 ) -> tuple[pd.Index, pd.Index]:
-    """Split index into IS and OOS portions by date."""
+    """Split index into IS and OOS portions.
+
+    Default: by ``ratio`` (first ``ratio`` fraction = IS, by position).
+
+    When ``cutoff`` is given it takes precedence and the split is by DATE:
+    IS = dates ``<= cutoff``, OOS = dates ``> cutoff``. This is the frozen
+    select/eval boundary — selection (param-pick + WFA + DSR gate) runs on IS
+    only, so it never sees the scored OOS window. Disjoint and exhaustive.
+    """
+    if cutoff is not None:
+        return common_idx[common_idx <= cutoff], common_idx[common_idx > cutoff]
     n = len(common_idx)
     split = int(n * ratio)
     return common_idx[:split], common_idx[split:]
@@ -145,8 +161,12 @@ def backtest_vbt_fold(
     if signal_fn is not None:
         # Use caller-provided signal method
         entries, exits = signal_fn(
-            ratio, window, entry_thresh, exit_thresh,
-            slope_min=slope_min, slope_window=slope_window,
+            ratio,
+            window,
+            entry_thresh,
+            exit_thresh,
+            slope_min=slope_min,
+            slope_window=slope_window,
         )
     else:
         # Default: robust z-score (backward compatible)
@@ -223,18 +243,29 @@ def backtest_numba_fold(
     )
     if not is_ma_crossover:
         return backtest_vbt_fold(
-            num_prices, ratio, window, entry_thresh, exit_thresh,
-            stop_pct=stop_pct, slope_min=slope_min,
-            slope_window=slope_window, fees=fees,
-            init_cash=init_cash, signal_fn=signal_fn,
+            num_prices,
+            ratio,
+            window,
+            entry_thresh,
+            exit_thresh,
+            stop_pct=stop_pct,
+            slope_min=slope_min,
+            slope_window=slope_window,
+            fees=fees,
+            init_cash=init_cash,
+            signal_fn=signal_fn,
         )
 
     from strategy_tester.s2_optimize.grid_ma import _backtest_numba
 
     # Generate signal via signal_fn
     entries, exits = signal_fn(
-        ratio, window, entry_thresh, exit_thresh,
-        slope_min=slope_min, slope_window=slope_window,
+        ratio,
+        window,
+        entry_thresh,
+        exit_thresh,
+        slope_min=slope_min,
+        slope_window=slope_window,
     )
     # Convert to int array (1 = in position, 0 = out)
     signal_arr = entries.astype(int).values.astype(np.int32)
@@ -244,14 +275,18 @@ def backtest_numba_fold(
 
     if n < 2:
         return {
-            "sharpe": float("nan"), "cagr": float("nan"),
-            "max_dd": float("nan"), "n_trades": 0,
+            "sharpe": float("nan"),
+            "cagr": float("nan"),
+            "max_dd": float("nan"),
+            "n_trades": 0,
             "hit_rate": float("nan"),
             "returns": pd.Series(dtype=float),
         }
 
     sharpe, cagr, max_dd, n_trades, hit_rate, _, _, _ = _backtest_numba(
-        signal_arr, close_arr, n,
+        signal_arr,
+        close_arr,
+        n,
     )
 
     # Build daily returns array (for downstream metrics)
@@ -350,10 +385,7 @@ try:
         trade_ret = 0.0
 
         for t in range(1, n):
-            ret = (
-                close[t] / close[t - 1] - 1.0
-                if close[t - 1] > 0 else 0.0
-            )
+            ret = close[t] / close[t - 1] - 1.0 if close[t - 1] > 0 else 0.0
 
             if in_pos and stop_pct > 0.0:
                 pnl_pct = close[t] / entry_price - 1.0
@@ -400,15 +432,13 @@ try:
         for i in range(n):
             var_r += (daily_rets[i] - mean_r) ** 2
         var_r /= float(n - 1)
-        std_r = var_r ** 0.5
+        std_r = var_r**0.5
 
         if std_r < 1e-10:
             return 0.0, n_trades, 0.0
 
-        sharpe = (mean_r / std_r) * (252.0 ** 0.5)
-        hit_rate = (
-            n_winning / n_trades if n_trades > 0 else 0.0
-        )
+        sharpe = (mean_r / std_r) * (252.0**0.5)
+        hit_rate = n_winning / n_trades if n_trades > 0 else 0.0
         return sharpe, n_trades, hit_rate
 
     @_nb.njit(cache=True)
@@ -453,19 +483,14 @@ try:
 
                     for t in range(1, n):
                         prev_close = close[t - 1]
-                        ret = (
-                            close[t] / prev_close - 1.0
-                            if prev_close > 0.0 else 0.0
-                        )
+                        ret = close[t] / prev_close - 1.0 if prev_close > 0.0 else 0.0
                         # Signal values (shifted by 1 for lookahead)
                         sig = signal_arr[t - 1]
 
                         if in_pos:
                             # Stop-loss check
                             if stop_pct > 0.0:
-                                pnl_pct = (
-                                    close[t] / entry_price - 1.0
-                                )
+                                pnl_pct = close[t] / entry_price - 1.0
                                 if pnl_pct <= -stop_pct:
                                     daily_rets[t] = ret - fee
                                     trade_ret += ret - fee
@@ -520,16 +545,14 @@ try:
                     for i in range(n):
                         var_r += (daily_rets[i] - mean_r) ** 2
                     var_r /= float(n - 1)
-                    std_r = var_r ** 0.5
+                    std_r = var_r**0.5
 
                     if std_r < 1e-10:
                         continue
 
-                    sharpe = (mean_r / std_r) * (252.0 ** 0.5)
+                    sharpe = (mean_r / std_r) * (252.0**0.5)
                     # Penalized sharpe
-                    pen = sharpe * (
-                        1.0 - float(n_params) / float(n_trades)
-                    ) ** 0.5
+                    pen = sharpe * (1.0 - float(n_params) / float(n_trades)) ** 0.5
 
                     if pen > best_pen:
                         best_pen = pen
@@ -540,8 +563,12 @@ try:
                         best_si = si
 
         return (
-            best_pen, best_sharpe, best_trades,
-            best_ei, best_xi, best_si,
+            best_pen,
+            best_sharpe,
+            best_trades,
+            best_ei,
+            best_xi,
+            best_si,
         )
 
     @_nb.njit(cache=True)
@@ -589,46 +616,29 @@ try:
 
                     for t in range(1, n):
                         prev_close = close[t - 1]
-                        ret = (
-                            close[t] / prev_close - 1.0
-                            if prev_close > 0.0 else 0.0
-                        )
+                        ret = close[t] / prev_close - 1.0 if prev_close > 0.0 else 0.0
                         # Signals from previous bar (shift=1)
                         z_prev = z_arr[t - 1]
                         adx_prev = adx_arr[t - 1]
                         ma_prev = ma_signal_arr[t - 1]
-                        ma_prev2 = (
-                            ma_signal_arr[t - 2] if t >= 2 else 0.0
-                        )
+                        ma_prev2 = ma_signal_arr[t - 2] if t >= 2 else 0.0
 
                         is_ranging = adx_prev < adx_range
                         is_trending = adx_prev > adx_trend
 
                         # Entry signals
-                        mr_entry = (
-                            is_ranging and z_prev <= -entry_t
-                        )
-                        trend_entry = (
-                            is_trending
-                            and ma_prev == 1.0
-                            and ma_prev2 == 0.0
-                        )
+                        mr_entry = is_ranging and z_prev <= -entry_t
+                        trend_entry = is_trending and ma_prev == 1.0 and ma_prev2 == 0.0
                         # Exit signals
                         mr_exit = is_ranging and z_prev >= exit_t
-                        trend_exit = (
-                            is_trending
-                            and ma_prev == 0.0
-                            and ma_prev2 == 1.0
-                        )
+                        trend_exit = is_trending and ma_prev == 0.0 and ma_prev2 == 1.0
 
                         do_entry = mr_entry or trend_entry
                         do_exit = mr_exit or trend_exit
 
                         if in_pos:
                             if stop_pct > 0.0:
-                                pnl_pct = (
-                                    close[t] / entry_price - 1.0
-                                )
+                                pnl_pct = close[t] / entry_price - 1.0
                                 if pnl_pct <= -stop_pct:
                                     daily_rets[t] = ret - fee
                                     trade_ret += ret - fee
@@ -670,15 +680,13 @@ try:
                     for i in range(n):
                         var_r += (daily_rets[i] - mean_r) ** 2
                     var_r /= float(n - 1)
-                    std_r = var_r ** 0.5
+                    std_r = var_r**0.5
 
                     if std_r < 1e-10:
                         continue
 
-                    sharpe = (mean_r / std_r) * (252.0 ** 0.5)
-                    pen = sharpe * (
-                        1.0 - float(n_params) / float(n_trades)
-                    ) ** 0.5
+                    sharpe = (mean_r / std_r) * (252.0**0.5)
+                    pen = sharpe * (1.0 - float(n_params) / float(n_trades)) ** 0.5
 
                     if pen > best_pen:
                         best_pen = pen
@@ -689,8 +697,12 @@ try:
                         best_si = si
 
         return (
-            best_pen, best_sharpe, best_trades,
-            best_ei, best_xi, best_si,
+            best_pen,
+            best_sharpe,
+            best_trades,
+            best_ei,
+            best_xi,
+            best_si,
         )
 
     HAS_NUMBA_BACKTEST = True
@@ -729,11 +741,16 @@ def grid_sweep_threshold(
     sig = signal_arr.astype(np.float64)
     cl = close.astype(np.float64)
 
-    best_pen, best_sharpe, best_trades, ei, xi, si = (
-        _grid_sweep_threshold_numba(
-            sig, cl, eg, xg, sg, fees,
-            min_is_trades, n_params, is_oversold,
-        )
+    best_pen, best_sharpe, best_trades, ei, xi, si = _grid_sweep_threshold_numba(
+        sig,
+        cl,
+        eg,
+        xg,
+        sg,
+        fees,
+        min_is_trades,
+        n_params,
+        is_oversold,
     )
 
     if best_pen <= -1e29:
@@ -771,16 +788,19 @@ def grid_sweep_regime(
     xg = np.array(exit_grid, dtype=np.float64)
     sg = np.array(stop_grid, dtype=np.float64)
 
-    best_pen, best_sharpe, best_trades, ei, xi, si = (
-        _grid_sweep_regime_numba(
-            z_arr.astype(np.float64),
-            ma_signal_arr.astype(np.float64),
-            adx_arr.astype(np.float64),
-            close.astype(np.float64),
-            eg, xg, sg, fees,
-            min_is_trades, n_params,
-            adx_trend, adx_range,
-        )
+    best_pen, best_sharpe, best_trades, ei, xi, si = _grid_sweep_regime_numba(
+        z_arr.astype(np.float64),
+        ma_signal_arr.astype(np.float64),
+        adx_arr.astype(np.float64),
+        close.astype(np.float64),
+        eg,
+        xg,
+        sg,
+        fees,
+        min_is_trades,
+        n_params,
+        adx_trend,
+        adx_range,
     )
 
     if best_pen <= -1e29:
@@ -810,8 +830,11 @@ def backtest_numba_entries_exits(
     """
     if not HAS_NUMBA_BACKTEST:
         return backtest_vbt_precomputed(
-            num_prices, entries, exits,
-            stop_pct=stop_pct, fees=fees,
+            num_prices,
+            entries,
+            exits,
+            stop_pct=stop_pct,
+            fees=fees,
         )
 
     close = num_prices.values.astype(np.float64)
@@ -819,7 +842,11 @@ def backtest_numba_entries_exits(
     ext = exits.values.astype(bool)
 
     sharpe, n_trades, hit_rate = _backtest_entries_exits_numba(
-        ent, ext, close, stop_pct, fees,
+        ent,
+        ext,
+        close,
+        stop_pct,
+        fees,
     )
 
     return {

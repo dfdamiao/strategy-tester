@@ -1,4 +1,5 @@
 """Tests for backtest engine and signal helpers."""
+
 from __future__ import annotations
 import numpy as np
 import pandas as pd
@@ -13,8 +14,11 @@ from strategy_tester.backtest.vbt_runner import (
 
 
 def _make_ou_process(
-    n: int = 1000, theta: float = 0.05, mu: float = 1.0,
-    sigma: float = 0.01, seed: int = 42,
+    n: int = 1000,
+    theta: float = 0.05,
+    mu: float = 1.0,
+    sigma: float = 0.01,
+    seed: int = 42,
 ) -> pd.Series:
     """Synthetic OU process with known mean-reversion speed."""
     rng = np.random.default_rng(seed)
@@ -69,3 +73,30 @@ def test_is_oos_split():
     assert len(is_idx) == 800
     assert len(oos_idx) == 200
     assert is_idx[-1] < oos_idx[0]
+
+
+def test_is_oos_split_by_cutoff():
+    """Frozen select/eval split: IS = dates <= cutoff, OOS = dates > cutoff,
+    disjoint and exhaustive — so selection on IS never sees the scored OOS."""
+    idx = pd.bdate_range("2015-01-01", periods=2000)
+    cutoff = pd.Timestamp("2019-12-31")
+    is_idx, oos_idx = build_is_oos_split(idx, cutoff=cutoff)
+    # IS strictly <= cutoff, OOS strictly > cutoff
+    assert (is_idx <= cutoff).all()
+    assert (oos_idx > cutoff).all()
+    # disjoint + exhaustive partition (no leakage, no dropped bars)
+    assert len(is_idx) + len(oos_idx) == len(idx)
+    assert is_idx.intersection(oos_idx).empty
+    assert is_idx[-1] < oos_idx[0]
+    # cutoff takes precedence over ratio when both given
+    is2, oos2 = build_is_oos_split(idx, ratio=0.99, cutoff=cutoff)
+    assert is2.equals(is_idx) and oos2.equals(oos_idx)
+
+
+def test_is_oos_split_ratio_unchanged_when_no_cutoff():
+    """Additive guard: existing ratio behavior is byte-identical (cutoff=None)."""
+    idx = pd.bdate_range("2020-01-01", periods=1000)
+    a, b = build_is_oos_split(idx, ratio=0.80)
+    a2, b2 = build_is_oos_split(idx, 0.80)  # positional, as all live callers do
+    assert a.equals(a2) and b.equals(b2)
+    assert len(a) == 800 and len(b) == 200
