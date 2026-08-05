@@ -11,6 +11,7 @@ schema is contract-fixed (see ``walk_portfolio_oracle`` docstring). All
 strategy-specific things (signal, ATR, stop) live in the cache itself; the
 walker only calls the supplied ``weight_oracle`` to obtain per-bar weights.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -24,9 +25,15 @@ import pandas as pd
 
 ANNUALIZE = 252
 DEFAULT_SEED_NAV = 100_000.0
-CASH_BUFFER = 0.95          # cap entries at 95% of cash projection
-COST_PER_SIDE = 0.001       # 10 bps/side (Chan AT 2013 Ch.3) — LEGACY
-SLIP_BPS = 5.0 / 1e4        # 5 bps slippage
+CASH_BUFFER = 0.95  # cap entries at 95% of cash projection
+COST_PER_SIDE = 0.001  # 10 bps/side (Chan AT 2013 Ch.3) — LEGACY
+# Slippage. Raised 5.0 -> 9.5 bps on 2026-07-26 so that GRADING is never
+# kinder than the SCREEN: the S3/S4 selection engine charges a flat 10
+# bps/side, while S5's per-share commission model came to ~0.5 bps at the
+# measured entry size — with 5 bps slip, grading was ~9 bps/round-trip
+# cheaper than the screen and every headline was flattered. 9.5 bps slip
+# + ~0.5 bps commission pins S5 costs to the 10 bps screen.
+SLIP_BPS = 9.5 / 1e4
 
 # ---------------------------------------------------------------------------
 # IBKR per-share commission model (added 2026-05-18 per PORTFOLIO_CONSTRUCTION.md §5)
@@ -47,7 +54,10 @@ SLIP_BPS = 5.0 / 1e4        # 5 bps slippage
 #   "ibkr_lite"       — $0 commission on US stocks/ETFs
 
 COMMISSION_MODELS = (
-    "flat_10bps", "ibkr_pro_fixed", "ibkr_pro_tiered", "ibkr_lite",
+    "flat_10bps",
+    "ibkr_pro_fixed",
+    "ibkr_pro_tiered",
+    "ibkr_lite",
 )
 # Restored to `ibkr_pro_fixed` 2026-05-18 PM after the ratio-aware fix
 # (per PORTFOLIO_CONSTRUCTION.md §5.1). Ratios go through 2× per-leg
@@ -59,13 +69,13 @@ DEFAULT_COMMISSION_MODEL = "ibkr_pro_fixed"
 # IBKR Pro Fixed
 IBKR_FIXED_PER_SHARE = 0.005
 IBKR_FIXED_MIN_ORDER = 1.00
-IBKR_FIXED_MAX_PCT   = 0.01     # 1% of trade value cap
+IBKR_FIXED_MAX_PCT = 0.01  # 1% of trade value cap
 
 # IBKR Pro Tiered (base tier)
-IBKR_TIERED_PER_SHARE  = 0.0035
-IBKR_TIERED_MIN_ORDER  = 0.35
+IBKR_TIERED_PER_SHARE = 0.0035
+IBKR_TIERED_MIN_ORDER = 0.35
 IBKR_TIERED_PASSTHROUGH_PER_SHARE = 0.0008  # SEC + FINRA + clearing approx
-IBKR_TIERED_MAX_PCT    = 0.01
+IBKR_TIERED_MAX_PCT = 0.01
 
 # Ratio-aware approximation: a synthetic ratio (e.g. SPY/QQQ traded as one
 # unit) is executed live as ONE leg — long the numerator only — for the
@@ -146,9 +156,8 @@ def commission_per_side(
         base = max(IBKR_TIERED_MIN_ORDER, eff_shares * IBKR_TIERED_PER_SHARE)
         passthrough = eff_shares * IBKR_TIERED_PASSTHROUGH_PER_SHARE
         return min(base + passthrough, notional * IBKR_TIERED_MAX_PCT)
-    raise ValueError(
-        f"commission model {model!r} not in {COMMISSION_MODELS}"
-    )
+    raise ValueError(f"commission model {model!r} not in {COMMISSION_MODELS}")
+
 
 # Sizing rules ---------------------------------------------------------------
 # netliq_clip              — Option B (legacy): target = w × NetLiq, clipped
@@ -204,15 +213,16 @@ def commission_per_side(
 # while in_position is a no-op (one position per name until exit). DD
 # throttle, when ON, scales only NEW-ENTRY sizing — never incumbents.
 SIZING_RULES = (
-    "netliq_clip", "cash_fraction", "cash_fraction_capped",
-    "cash_fraction_seq_capped", "paleologo_strict",
+    "netliq_clip",
+    "cash_fraction",
+    "cash_fraction_capped",
+    "cash_fraction_seq_capped",
+    "paleologo_strict",
 )
 DEFAULT_SIZING_RULE = "cash_fraction_seq_capped"  # bumped 2026-05-18 (Layer-0)
-DEFAULT_DD_TOL = 0.25       # canonical default (per-strategy may override)
+DEFAULT_DD_TOL = 0.25  # canonical default (per-strategy may override)
 DEFAULT_PER_NAME_CAP = 0.20  # bumped 2026-05-18 from 0.10 — fits the wider
 # canonical cap sweep {5,10,20,30,50}% (ref-doc Q4 / Q12, 2026-05-17 c39).
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +233,7 @@ DEFAULT_PER_NAME_CAP = 0.20  # bumped 2026-05-18 from 0.10 — fits the wider
 @dataclass
 class TickerState:
     """Live position state for one ticker."""
+
     ticker: str
     shares: int
     entry_price: float
@@ -233,8 +244,8 @@ class TickerState:
     stop_param: float
     base_weight: float
     # Cap-verification diagnostics captured at entry (paleologo_strict)
-    entry_pct_cash: float = 0.0   # cost / cash_at_bar_start × 100
-    entry_pct_nav: float = 0.0    # cost / NAV_at_entry × 100
+    entry_pct_cash: float = 0.0  # cost / cash_at_bar_start × 100
+    entry_pct_nav: float = 0.0  # cost / NAV_at_entry × 100
     # Per-bar excursion tracking (MAE = worst unrealized return %,
     # MFE = best unrealized return %). Both initialised at 0% because
     # entry-bar close = entry_price (no excursion yet). Updated on each bar
@@ -251,6 +262,7 @@ class TickerState:
 @dataclass
 class TradeLog:
     """One closed trade record."""
+
     ticker: str
     entry_date: pd.Timestamp
     entry_price: float
@@ -261,12 +273,12 @@ class TradeLog:
     pnl_pct: float
     exit_reason: str  # "signal" | "stop_atr" | "stop_pct" | "force_eow"
     # Diagnostics for cap verification (paleologo_strict)
-    entry_pct_cash: float = 0.0   # position_$ / cash_at_bar_start (entry)
-    entry_pct_nav: float = 0.0    # position_$ / NAV_at_entry
+    entry_pct_cash: float = 0.0  # position_$ / cash_at_bar_start (entry)
+    entry_pct_nav: float = 0.0  # position_$ / NAV_at_entry
     # Max adverse / favorable excursion during the holding period (in %)
     mae_pct: float = 0.0
     mfe_pct: float = 0.0
-    hold_days: int = 0            # (exit_date - entry_date).days
+    hold_days: int = 0  # (exit_date - entry_date).days
     # Total commission paid on this round trip (entry + exit)
     # = shares × (entry_price + exit_price) × tx_cost
     commission_dollars: float = 0.0
@@ -275,6 +287,7 @@ class TradeLog:
 @dataclass
 class FailedEntry:
     """One signal that failed to enter due to cash constraints."""
+
     ticker: str
     date: pd.Timestamp
     target_dollars: float
@@ -286,6 +299,7 @@ class FailedEntry:
 @dataclass
 class ReplayState:
     """Mutable state through the walk."""
+
     cash: float
     positions: dict[str, TickerState] = field(default_factory=dict)
     daily_snapshot: list[dict] = field(default_factory=list)
@@ -295,7 +309,7 @@ class ReplayState:
     peak_nav: float = 0.0
     # Cap-binding telemetry (added 2026-05-18 per ref-doc Q17 c44):
     # how often the per-name cap actually bound at entry time.
-    n_cap_bound: int = 0      # entries where min(w, cap) == cap
+    n_cap_bound: int = 0  # entries where min(w, cap) == cap
     n_entries_total: int = 0  # all attempted entries (cap-bound or not)
 
 
@@ -354,13 +368,9 @@ def walk_portfolio_oracle(
       refreshes upward; current NAV = cash + Σ MTM positions).
     """
     if sizing_rule not in SIZING_RULES:
-        raise ValueError(
-            f"sizing_rule={sizing_rule!r} not in {SIZING_RULES}"
-        )
+        raise ValueError(f"sizing_rule={sizing_rule!r} not in {SIZING_RULES}")
     if dd_throttle not in ("off", "linear"):
-        raise ValueError(
-            f"dd_throttle={dd_throttle!r} must be 'off' or 'linear'"
-        )
+        raise ValueError(f"dd_throttle={dd_throttle!r} must be 'off' or 'linear'")
     state = ReplayState(cash=seed_nav)
     state.peak_nav = seed_nav  # MTM peak; refreshes upward only
     all_dates = pd.DatetimeIndex(
@@ -424,31 +434,43 @@ def walk_portfolio_oracle(
                 entry_notional = pos.shares * pos.entry_price
                 exit_notional = pos.shares * stop_px
                 entry_comm = commission_per_side(
-                    pos.shares, entry_notional,
-                    model=commission_model, flat_tx_cost=tx_cost,
-                    is_ratio=is_ratio_t, leg_price=pos.entry_leg_price,
+                    pos.shares,
+                    entry_notional,
+                    model=commission_model,
+                    flat_tx_cost=tx_cost,
+                    is_ratio=is_ratio_t,
+                    leg_price=pos.entry_leg_price,
                 )
                 exit_comm = commission_per_side(
-                    pos.shares, exit_notional,
-                    model=commission_model, flat_tx_cost=tx_cost,
-                    is_ratio=is_ratio_t, leg_price=exit_leg_price,
+                    pos.shares,
+                    exit_notional,
+                    model=commission_model,
+                    flat_tx_cost=tx_cost,
+                    is_ratio=is_ratio_t,
+                    leg_price=exit_leg_price,
                 )
                 commission = entry_comm + exit_comm
                 proceeds = pos.shares * stop_px - exit_comm
                 state.cash += proceeds
-                state.trades.append(TradeLog(
-                    ticker=ticker, entry_date=pos.entry_date,
-                    entry_price=pos.entry_price, exit_date=date,
-                    exit_price=stop_px, shares=pos.shares,
-                    pnl_dollars=proceeds - pos.shares * pos.entry_price,
-                    pnl_pct=(stop_px / pos.entry_price - 1.0) * 100,
-                    exit_reason="stop_atr" if pos.stop_code == 2 else "stop_pct",
-                    entry_pct_cash=pos.entry_pct_cash,
-                    entry_pct_nav=pos.entry_pct_nav,
-                    mae_pct=mae_final, mfe_pct=mfe_final,
-                    hold_days=(date - pos.entry_date).days,
-                    commission_dollars=commission,
-                ))
+                state.trades.append(
+                    TradeLog(
+                        ticker=ticker,
+                        entry_date=pos.entry_date,
+                        entry_price=pos.entry_price,
+                        exit_date=date,
+                        exit_price=stop_px,
+                        shares=pos.shares,
+                        pnl_dollars=proceeds - pos.shares * pos.entry_price,
+                        pnl_pct=(stop_px / pos.entry_price - 1.0) * 100,
+                        exit_reason="stop_atr" if pos.stop_code == 2 else "stop_pct",
+                        entry_pct_cash=pos.entry_pct_cash,
+                        entry_pct_nav=pos.entry_pct_nav,
+                        mae_pct=mae_final,
+                        mfe_pct=mfe_final,
+                        hold_days=(date - pos.entry_date).days,
+                        commission_dollars=commission,
+                    )
+                )
                 exits_today.append(ticker)
             elif pos_raw_t == 0:
                 exit_px = close_t * (1.0 - slip)
@@ -463,31 +485,43 @@ def walk_portfolio_oracle(
                 entry_notional = pos.shares * pos.entry_price
                 exit_notional = pos.shares * exit_px
                 entry_comm = commission_per_side(
-                    pos.shares, entry_notional,
-                    model=commission_model, flat_tx_cost=tx_cost,
-                    is_ratio=is_ratio_t, leg_price=pos.entry_leg_price,
+                    pos.shares,
+                    entry_notional,
+                    model=commission_model,
+                    flat_tx_cost=tx_cost,
+                    is_ratio=is_ratio_t,
+                    leg_price=pos.entry_leg_price,
                 )
                 exit_comm = commission_per_side(
-                    pos.shares, exit_notional,
-                    model=commission_model, flat_tx_cost=tx_cost,
-                    is_ratio=is_ratio_t, leg_price=exit_leg_price,
+                    pos.shares,
+                    exit_notional,
+                    model=commission_model,
+                    flat_tx_cost=tx_cost,
+                    is_ratio=is_ratio_t,
+                    leg_price=exit_leg_price,
                 )
                 commission = entry_comm + exit_comm
                 proceeds = pos.shares * exit_px - exit_comm
                 state.cash += proceeds
-                state.trades.append(TradeLog(
-                    ticker=ticker, entry_date=pos.entry_date,
-                    entry_price=pos.entry_price, exit_date=date,
-                    exit_price=exit_px, shares=pos.shares,
-                    pnl_dollars=proceeds - pos.shares * pos.entry_price,
-                    pnl_pct=(exit_px / pos.entry_price - 1.0) * 100,
-                    exit_reason="signal",
-                    entry_pct_cash=pos.entry_pct_cash,
-                    entry_pct_nav=pos.entry_pct_nav,
-                    mae_pct=mae_final, mfe_pct=mfe_final,
-                    hold_days=(date - pos.entry_date).days,
-                    commission_dollars=commission,
-                ))
+                state.trades.append(
+                    TradeLog(
+                        ticker=ticker,
+                        entry_date=pos.entry_date,
+                        entry_price=pos.entry_price,
+                        exit_date=date,
+                        exit_price=exit_px,
+                        shares=pos.shares,
+                        pnl_dollars=proceeds - pos.shares * pos.entry_price,
+                        pnl_pct=(exit_px / pos.entry_price - 1.0) * 100,
+                        exit_reason="signal",
+                        entry_pct_cash=pos.entry_pct_cash,
+                        entry_pct_nav=pos.entry_pct_nav,
+                        mae_pct=mae_final,
+                        mfe_pct=mfe_final,
+                        hold_days=(date - pos.entry_date).days,
+                        commission_dollars=commission,
+                    )
+                )
                 exits_today.append(ticker)
             else:
                 if close_t > pos.peak_close:
@@ -515,8 +549,7 @@ def walk_portfolio_oracle(
                     "stop_param": c["stop_param"],
                     "base_weight": c["base_weight"],
                     "leg_price": (
-                        float(leg_price_arr[ti])
-                        if leg_price_arr is not None else 0.0
+                        float(leg_price_arr[ti]) if leg_price_arr is not None else 0.0
                     ),
                 }
 
@@ -536,7 +569,8 @@ def walk_portfolio_oracle(
                 state.peak_nav = netliq
             dd_now = (
                 (state.peak_nav - netliq) / state.peak_nav
-                if state.peak_nav > 0 else 0.0
+                if state.peak_nav > 0
+                else 0.0
             )
             # paleologo_strict: linear DD throttle is now ALWAYS ON
             # (2026-05-18, ref-doc). The `dd_throttle` arg is retained for
@@ -616,34 +650,42 @@ def walk_portfolio_oracle(
                 cost_per_share_naive = entry_px * (1.0 + tx_cost)
                 shares = (
                     int(sized_dollars / cost_per_share_naive)
-                    if cost_per_share_naive > 0 else 0
+                    if cost_per_share_naive > 0
+                    else 0
                 )
                 # paleologo_strict + cash_fraction + cash_fraction_capped
                 # never run out of cash by construction (Σ targets ≤
                 # cash × buffer); netliq_clip can.
                 no_clip_modes = {
-                    "cash_fraction", "cash_fraction_capped",
-                    "cash_fraction_seq_capped", "paleologo_strict",
+                    "cash_fraction",
+                    "cash_fraction_capped",
+                    "cash_fraction_seq_capped",
+                    "paleologo_strict",
                 }
                 if shares <= 0:
-                    reason = (
-                        "too_small" if sizing_rule in no_clip_modes
-                        else "no_cash"
+                    reason = "too_small" if sizing_rule in no_clip_modes else "no_cash"
+                    state.failed_entries.append(
+                        FailedEntry(
+                            ticker=ticker,
+                            date=date,
+                            target_dollars=target_dollars,
+                            sized_dollars=0.0,
+                            cash_available=state.cash,
+                            reason=reason,
+                        )
                     )
-                    state.failed_entries.append(FailedEntry(
-                        ticker=ticker, date=date,
-                        target_dollars=target_dollars, sized_dollars=0.0,
-                        cash_available=state.cash, reason=reason,
-                    ))
                     continue
                 # Model-aware actual cost (commission added to notional)
                 is_ratio_t = bool(cache[ticker].get("is_ratio", False))
                 entry_leg_price = float(info.get("leg_price", 0.0))
                 entry_notional = shares * entry_px
                 entry_comm = commission_per_side(
-                    shares, entry_notional,
-                    model=commission_model, flat_tx_cost=tx_cost,
-                    is_ratio=is_ratio_t, leg_price=entry_leg_price,
+                    shares,
+                    entry_notional,
+                    model=commission_model,
+                    flat_tx_cost=tx_cost,
+                    is_ratio=is_ratio_t,
+                    leg_price=entry_leg_price,
                 )
                 cost = entry_notional + entry_comm
                 if cost > state.cash:
@@ -651,55 +693,66 @@ def walk_portfolio_oracle(
                     if shares > 0:
                         entry_notional = shares * entry_px
                         entry_comm = commission_per_side(
-                            shares, entry_notional,
-                            model=commission_model, flat_tx_cost=tx_cost,
-                            is_ratio=is_ratio_t, leg_price=entry_leg_price,
+                            shares,
+                            entry_notional,
+                            model=commission_model,
+                            flat_tx_cost=tx_cost,
+                            is_ratio=is_ratio_t,
+                            leg_price=entry_leg_price,
                         )
                         cost = entry_notional + entry_comm
                     if shares <= 0:
                         reason = (
-                            "too_small" if sizing_rule in no_clip_modes
-                            else "no_cash"
+                            "too_small" if sizing_rule in no_clip_modes else "no_cash"
                         )
-                        state.failed_entries.append(FailedEntry(
-                            ticker=ticker, date=date,
-                            target_dollars=target_dollars, sized_dollars=0.0,
-                            cash_available=state.cash, reason=reason,
-                        ))
+                        state.failed_entries.append(
+                            FailedEntry(
+                                ticker=ticker,
+                                date=date,
+                                target_dollars=target_dollars,
+                                sized_dollars=0.0,
+                                cash_available=state.cash,
+                                reason=reason,
+                            )
+                        )
                         continue
 
                 state.cash -= cost
                 if sizing_rule == "netliq_clip":
                     clipped = sized_dollars < target_dollars * 0.99
                     if clipped:
-                        state.failed_entries.append(FailedEntry(
-                            ticker=ticker, date=date,
-                            target_dollars=target_dollars, sized_dollars=cost,
-                            cash_available=state.cash + cost,
-                            reason="clipped",
-                        ))
+                        state.failed_entries.append(
+                            FailedEntry(
+                                ticker=ticker,
+                                date=date,
+                                target_dollars=target_dollars,
+                                sized_dollars=cost,
+                                cash_available=state.cash + cost,
+                                reason="clipped",
+                            )
+                        )
 
                 trail_init = (
                     info["close"] - info["stop_param"] * info["atr"]
-                    if info["stop_code"] == 2 else 0.0
+                    if info["stop_code"] == 2
+                    else 0.0
                 )
                 # Capture cap-verification diagnostics. cash_pool_t was
                 # snapshot before this loop (= cash_at_bar_start × buffer).
-                cash_at_bar_start = (
-                    cash_pool_t / buffer if buffer > 0 else 0.0
-                )
+                cash_at_bar_start = cash_pool_t / buffer if buffer > 0 else 0.0
                 entry_pct_cash = (
-                    cost / cash_at_bar_start * 100.0
-                    if cash_at_bar_start > 0 else 0.0
+                    cost / cash_at_bar_start * 100.0 if cash_at_bar_start > 0 else 0.0
                 )
-                entry_pct_nav = (
-                    cost / netliq * 100.0 if netliq > 0 else 0.0
-                )
+                entry_pct_nav = cost / netliq * 100.0 if netliq > 0 else 0.0
                 state.positions[ticker] = TickerState(
-                    ticker=ticker, shares=shares,
-                    entry_price=entry_px, entry_date=date,
-                    peak_close=info["close"], trail_level=trail_init,
-                    stop_code=info["stop_code"], stop_param=info["stop_param"],
+                    ticker=ticker,
+                    shares=shares,
+                    entry_price=entry_px,
+                    entry_date=date,
+                    peak_close=info["close"],
+                    trail_level=trail_init,
+                    stop_code=info["stop_code"],
+                    stop_param=info["stop_param"],
                     base_weight=info["base_weight"],
                     entry_pct_cash=entry_pct_cash,
                     entry_pct_nav=entry_pct_nav,
@@ -721,23 +774,26 @@ def walk_portfolio_oracle(
         if netliq > state.peak_nav:
             state.peak_nav = netliq
         dd_eod = (
-            (state.peak_nav - netliq) / state.peak_nav
-            if state.peak_nav > 0 else 0.0
+            (state.peak_nav - netliq) / state.peak_nav if state.peak_nav > 0 else 0.0
         )
         # Per-bar weight vector — fraction of NAV in each position (excludes
         # cash). Used downstream (runner.py) for HHI / Meucci ENB
         # concentration diagnostics (ref-doc Q5 / Q21, 2026-05-17).
         weights = (
-            {t: v / netliq for t, v in per_pos_mtm.items()}
-            if netliq > 1e-9 else {}
+            {t: v / netliq for t, v in per_pos_mtm.items()} if netliq > 1e-9 else {}
         )
-        state.daily_snapshot.append({
-            "date": date, "cash": state.cash,
-            "position_value": position_value, "netliq": netliq,
-            "peak_nav": state.peak_nav, "dd": dd_eod,
-            "n_positions": len(state.positions),
-            "weights": weights,
-        })
+        state.daily_snapshot.append(
+            {
+                "date": date,
+                "cash": state.cash,
+                "position_value": position_value,
+                "netliq": netliq,
+                "peak_nav": state.peak_nav,
+                "dd": dd_eod,
+                "n_positions": len(state.positions),
+                "weights": weights,
+            }
+        )
 
     # Force-exit any remaining positions on final bar
     final_date = all_dates[-1]
@@ -753,36 +809,46 @@ def walk_portfolio_oracle(
         mfe_final = max(pos.mfe_pct, exit_pct)
         is_ratio_t = bool(c.get("is_ratio", False))
         leg_price_arr = c.get("leg_price")
-        exit_leg_price = (
-            float(leg_price_arr[ti]) if leg_price_arr is not None else 0.0
-        )
+        exit_leg_price = float(leg_price_arr[ti]) if leg_price_arr is not None else 0.0
         entry_notional = pos.shares * pos.entry_price
         exit_notional = pos.shares * exit_px
         entry_comm = commission_per_side(
-            pos.shares, entry_notional,
-            model=commission_model, flat_tx_cost=tx_cost,
-            is_ratio=is_ratio_t, leg_price=pos.entry_leg_price,
+            pos.shares,
+            entry_notional,
+            model=commission_model,
+            flat_tx_cost=tx_cost,
+            is_ratio=is_ratio_t,
+            leg_price=pos.entry_leg_price,
         )
         exit_comm = commission_per_side(
-            pos.shares, exit_notional,
-            model=commission_model, flat_tx_cost=tx_cost,
-            is_ratio=is_ratio_t, leg_price=exit_leg_price,
+            pos.shares,
+            exit_notional,
+            model=commission_model,
+            flat_tx_cost=tx_cost,
+            is_ratio=is_ratio_t,
+            leg_price=exit_leg_price,
         )
         commission = entry_comm + exit_comm
         proceeds = pos.shares * exit_px - exit_comm
         state.cash += proceeds
-        state.trades.append(TradeLog(
-            ticker=ticker, entry_date=pos.entry_date,
-            entry_price=pos.entry_price, exit_date=final_date,
-            exit_price=exit_px, shares=pos.shares,
-            pnl_dollars=proceeds - pos.shares * pos.entry_price,
-            pnl_pct=(exit_px / pos.entry_price - 1.0) * 100,
-            exit_reason="force_eow",
-            entry_pct_cash=pos.entry_pct_cash,
-            entry_pct_nav=pos.entry_pct_nav,
-            mae_pct=mae_final, mfe_pct=mfe_final,
-            hold_days=(final_date - pos.entry_date).days,
-            commission_dollars=commission,
-        ))
+        state.trades.append(
+            TradeLog(
+                ticker=ticker,
+                entry_date=pos.entry_date,
+                entry_price=pos.entry_price,
+                exit_date=final_date,
+                exit_price=exit_px,
+                shares=pos.shares,
+                pnl_dollars=proceeds - pos.shares * pos.entry_price,
+                pnl_pct=(exit_px / pos.entry_price - 1.0) * 100,
+                exit_reason="force_eow",
+                entry_pct_cash=pos.entry_pct_cash,
+                entry_pct_nav=pos.entry_pct_nav,
+                mae_pct=mae_final,
+                mfe_pct=mfe_final,
+                hold_days=(final_date - pos.entry_date).days,
+                commission_dollars=commission,
+            )
+        )
 
     return state

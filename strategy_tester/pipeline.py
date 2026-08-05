@@ -1,4 +1,5 @@
 """Pipeline class — chains stages with routing validation."""
+
 from __future__ import annotations
 
 import time
@@ -44,16 +45,20 @@ class Pipeline:
         self.s2_signal = s2_signal
         self.s2_optim = s2_optim
 
-        def _as_list(x: str | list[str] | None) -> list[str]:
-            # None means "skip this stage" (e.g. an S1+S2-only design).
-            if x is None:
+        # None means "this stage is deliberately not run" — presets use it
+        # (obv_pivot's OBV-PROD sets s3/s4/s5 to None, "S3+ deferred" per its
+        # CLAUDE.md). Before 2026-07-26 that raised TypeError on list(None), so
+        # any such preset could not be instantiated at all; the test catching it
+        # existed but was silently uncollected until importmode=importlib.
+        def _methods(v) -> list[str]:
+            if v is None:
                 return []
-            return [x] if isinstance(x, str) else list(x)
+            return [v] if isinstance(v, str) else list(v)
 
-        self._s1_methods = _as_list(s1)
-        self._s3_methods = _as_list(s3)
-        self._s4_methods = _as_list(s4)
-        self._s5_methods = _as_list(s5)
+        self._s1_methods = _methods(s1)
+        self._s3_methods = _methods(s3)
+        self._s4_methods = _methods(s4)
+        self._s5_methods = _methods(s5)
 
         self._validate_routing()
 
@@ -61,9 +66,7 @@ class Pipeline:
         """Enforce S3->S4 routing constraints."""
         wfa_methods = {"wfa_expanding", "wfa_rolling"}
 
-        if "wfe" in self._s4_methods and not (
-            set(self._s3_methods) & wfa_methods
-        ):
+        if "wfe" in self._s4_methods and not (set(self._s3_methods) & wfa_methods):
             raise ValueError(
                 "WFE requires WFA output (CPCV has no IS/OOS "
                 "in Pardo sense). Add wfa_expanding or "
@@ -190,9 +193,7 @@ class Pipeline:
             validate_interface(combined, "s4")
 
             tier_order = {"TOP_TIER": 0, "SECOND_TIER": 1, "REJECT": 2}
-            combined["_tier_ord"] = combined["tier"].map(
-                lambda t: tier_order.get(t, 2)
-            )
+            combined["_tier_ord"] = combined["tier"].map(lambda t: tier_order.get(t, 2))
             combined = (
                 combined.sort_values("_tier_ord")
                 .drop_duplicates(subset=["pair"], keep="first")

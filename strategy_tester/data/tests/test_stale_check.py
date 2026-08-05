@@ -1,4 +1,5 @@
-"""Tests for strategy_tester/data/stale_check.py."""
+"""Tests for trading_strategies/lib/data/stale_check.py."""
+
 from __future__ import annotations
 
 import datetime as dt
@@ -57,7 +58,9 @@ def test_missing_ticker_counts_as_stale():
     target = dt.date(2026, 5, 26)
     prices = {"SPY": _frame(target)}  # QQQ entirely missing
     report = check_freshness(
-        prices, target_date=target, expected_tickers=["SPY", "QQQ"],
+        prices,
+        target_date=target,
+        expected_tickers=["SPY", "QQQ"],
     )
     assert "QQQ" in report.stale_tickers
     assert report.days_behind["QQQ"] == -1  # sentinel for missing
@@ -95,3 +98,72 @@ def test_filter_prices_drops_stale():
     report = check_freshness(prices, target_date=target)
     fresh_only = filter_fresh(prices, report)
     assert set(fresh_only.keys()) == {"SPY"}
+
+
+# --- US-holiday calendar awareness (2026-07-03 incident) -----------------
+# July 4th 2026 falls on Saturday → NYSE observed the holiday on Friday
+# 2026-07-03. US tickers' last bar was Thursday 07-02; the gate marked 196
+# of 212 cohort tickers stale and the signal generator exited the whole
+# book. target_date must resolve to the last completed XNYS session.
+
+
+def test_us_holiday_friday_treats_prior_session_as_target():
+    from strategy_tester.data.stale_check import check_freshness
+
+    target = dt.date(2026, 7, 3)  # July 4th observed — NYSE closed
+    prices = {"SPY": _frame(dt.date(2026, 7, 2))}  # Thursday close
+    report = check_freshness(prices, target_date=target)
+    assert report.fresh_tickers == ["SPY"]
+    assert report.days_behind["SPY"] == 0
+    assert report.effective_target_date == dt.date(2026, 7, 2)
+
+
+def test_us_holiday_friday_eu_ticker_with_holiday_bar_still_fresh():
+    from strategy_tester.data.stale_check import check_freshness
+
+    target = dt.date(2026, 7, 3)
+    prices = {"XEON.MI": _frame(target)}  # EU traded on the US holiday
+    report = check_freshness(prices, target_date=target)
+    assert report.fresh_tickers == ["XEON.MI"]
+
+
+def test_juneteenth_2026_prior_session_fresh():
+    from strategy_tester.data.stale_check import check_freshness
+
+    target = dt.date(2026, 6, 19)  # Juneteenth, Friday — NYSE closed
+    prices = {"SPY": _frame(dt.date(2026, 6, 18))}
+    report = check_freshness(prices, target_date=target)
+    assert report.fresh_tickers == ["SPY"]
+
+
+def test_normal_friday_one_day_behind_still_stale():
+    from strategy_tester.data.stale_check import check_freshness
+
+    target = dt.date(2026, 6, 26)  # ordinary Friday session
+    prices = {"SPY": _frame(dt.date(2026, 6, 25))}
+    report = check_freshness(prices, target_date=target)
+    assert report.stale_tickers == ["SPY"]
+    assert report.effective_target_date == target
+
+
+def test_calendar_none_disables_adjustment():
+    from strategy_tester.data.stale_check import check_freshness
+
+    target = dt.date(2026, 7, 3)
+    prices = {"SPY": _frame(dt.date(2026, 7, 2))}
+    report = check_freshness(prices, target_date=target, calendar=None)
+    assert report.stale_tickers == ["SPY"]
+
+
+def test_filter_fresh_protect_keeps_stale_held():
+    from strategy_tester.data.stale_check import check_freshness, filter_fresh
+
+    target = dt.date(2026, 5, 26)
+    prices = {
+        "SPY": _frame(target),
+        "QQQ": _frame(dt.date(2026, 5, 22)),  # stale, held → protected
+        "IWM": _frame(dt.date(2026, 5, 22)),  # stale, not held → dropped
+    }
+    report = check_freshness(prices, target_date=target)
+    kept = filter_fresh(prices, report, protect={"QQQ", "ZZZ"})  # ZZZ absent
+    assert set(kept.keys()) == {"SPY", "QQQ"}
