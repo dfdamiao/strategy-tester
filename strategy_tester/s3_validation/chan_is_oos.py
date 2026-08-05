@@ -15,7 +15,12 @@ from strategy_tester.backtest.vbt_runner import (
     backtest_numba_fold,
     build_is_oos_split,
 )
-from strategy_tester.backtest.metrics import geometric_cagr, max_drawdown
+from strategy_tester.backtest.metrics import (
+    annualized_sharpe,
+    bars_per_year_from_index,
+    geometric_cagr,
+    max_drawdown,
+)
 
 # ── Worker globals (set once per fork via _worker_init) ──────────
 _WORKER_PRICES: pd.DataFrame | None = None
@@ -54,6 +59,9 @@ def _process_one_pair_chan_is_oos(
         return None
 
     is_idx, oos_idx = build_is_oos_split(common, is_ratio)
+    # Frequency-correct annualization (2026-08-05): detect bars/year from the
+    # panel — the engine's bt["sharpe"] is 252-annualized regardless of bars.
+    ppy = bars_per_year_from_index(common)
 
     # Re-estimate halflife on IS
     if use_s2_window:
@@ -98,7 +106,7 @@ def _process_one_pair_chan_is_oos(
         if isinstance(oos_rets, pd.Series):
             oos_rets = oos_rets.values
         oos_rets = np.asarray(oos_rets, dtype=np.float64)
-        oos_cagr = geometric_cagr(oos_rets)
+        oos_cagr = geometric_cagr(oos_rets, periods_per_year=ppy)
         oos_mdd = max_drawdown(oos_rets)
         n_oos_bars = int(len(oos_rets))
     else:
@@ -106,11 +114,22 @@ def _process_one_pair_chan_is_oos(
         oos_mdd = 0.0
         n_oos_bars = 0
 
+    # SRs recomputed from fold returns via the canonical kernel at the
+    # detected bars/year (kernel returns 0.0 on zero-variance folds).
+    is_rets = is_bt.get("returns")
+    if isinstance(is_rets, pd.Series):
+        is_rets = is_rets.values
     is_sharpe = (
-        is_bt["sharpe"] if not pd.isna(is_bt["sharpe"]) else 0.0
+        annualized_sharpe(
+            np.asarray(is_rets, dtype=np.float64), periods_per_year=ppy
+        )
+        if is_rets is not None and len(is_rets)
+        else 0.0
     )
     oos_sharpe = (
-        oos_bt["sharpe"] if not pd.isna(oos_bt["sharpe"]) else 0.0
+        annualized_sharpe(oos_rets, periods_per_year=ppy)
+        if oos_rets is not None and len(oos_rets)
+        else 0.0
     )
     degradation = (
         1 - oos_sharpe / is_sharpe

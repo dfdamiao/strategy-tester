@@ -8,6 +8,7 @@ recursive formula: avg_gain[t] = (avg_gain[t-1] * (n-1) + gain[t]) / n.
 
 Reference: Wilder, New Concepts in Technical Trading Systems (1978)
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -18,7 +19,8 @@ from strategy_tester.registry import register_stage
 
 
 def _compute_rsi_wilder(
-    ratio: pd.Series, window: int,
+    ratio: pd.Series,
+    window: int,
 ) -> pd.Series:
     """RSI with Wilder's exponential smoothing.
 
@@ -27,19 +29,38 @@ def _compute_rsi_wilder(
 
     This produces a smoother, less noisy RSI than simple rolling mean.
     """
+    # adjust=False makes this the RECURSIVE Wilder RMA the docstring describes
+    # (avg[t] = (avg[t-1]*(n-1) + x[t])/n). The pandas default adjust=True is a
+    # bias-corrected EWMA that is NOT Wilder's smoothing and diverges most at the
+    # short windows Connors RSI(2) uses. Fixed 2026-07-21 methods audit.
     delta = ratio.diff()
-    gain = delta.clip(lower=0.0).ewm(
-        alpha=1.0 / window, min_periods=window,
-    ).mean()
-    loss = (-delta).clip(lower=0.0).ewm(
-        alpha=1.0 / window, min_periods=window,
-    ).mean()
+    gain = (
+        delta.clip(lower=0.0)
+        .ewm(
+            alpha=1.0 / window,
+            min_periods=window,
+            adjust=False,
+        )
+        .mean()
+    )
+    loss = (
+        (-delta)
+        .clip(lower=0.0)
+        .ewm(
+            alpha=1.0 / window,
+            min_periods=window,
+            adjust=False,
+        )
+        .mean()
+    )
     rs = gain / loss.replace(0.0, np.nan)
     return 100.0 - 100.0 / (1.0 + rs)
 
 
 def precompute(
-    ratio: pd.Series, window: int, slope_window: int = 2,
+    ratio: pd.Series,
+    window: int,
+    slope_window: int = 2,
 ) -> dict:
     """Expensive part: compute RSI + slope once per pair."""
     rsi = _compute_rsi_wilder(ratio, window)
@@ -47,7 +68,9 @@ def precompute(
 
 
 def apply_thresholds(
-    pre: dict, entry_thresh: float, exit_thresh: float,
+    pre: dict,
+    entry_thresh: float,
+    exit_thresh: float,
     slope_min: float = 0.0,
 ) -> tuple[pd.Series, pd.Series]:
     """Cheap part: threshold + shift. Called per grid combo.
@@ -57,7 +80,8 @@ def apply_thresholds(
     """
     rsi, slope = pre["rsi"], pre["slope"]
     entries = ((rsi <= entry_thresh) & (slope >= slope_min)).shift(
-        1, fill_value=False,
+        1,
+        fill_value=False,
     )
     exits = (rsi >= exit_thresh).shift(1, fill_value=False)
     return entries, exits
@@ -65,8 +89,12 @@ def apply_thresholds(
 
 @register_stage("s2_signal")
 def rsi_wilder(
-    ratio: pd.Series, window: int, entry_thresh: float,
-    exit_thresh: float, slope_min: float = 0.0, slope_window: int = 2,
+    ratio: pd.Series,
+    window: int,
+    entry_thresh: float,
+    exit_thresh: float,
+    slope_min: float = 0.0,
+    slope_window: int = 2,
 ) -> tuple[pd.Series, pd.Series]:
     """RSI mean-reversion signal (Wilder's exponential smoothing).
 

@@ -6,6 +6,7 @@ Falls back to ``n_test_periods`` (fold count) with a deprecation warning
 when ``n_oos_bars`` is absent from the upstream S3 output — old artifacts
 predate the column.
 """
+
 from __future__ import annotations
 
 import warnings
@@ -14,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 from strategy_tester.registry import register_stage
-from strategy_tester.backtest.metrics import psr_stat
+from strategy_tester.backtest.metrics import psr_stat, to_per_period
 
 
 def _safe_float(val: object, default: float) -> float:
@@ -58,23 +59,34 @@ def psr(s3_result: pd.DataFrame, **config) -> pd.DataFrame:
     kurt_default = float(config.get("kurtosis", 3.0))
     rows = []
     for _, row in s3_result[s3_result["passed"]].iterrows():
-        sr = _safe_float(row["mean_test_sharpe"], 0.0)
+        # mean_test_sharpe is ANNUALIZED (S3 annualized_sharpe) but n_obs is a
+        # daily bar count — de-annualize SR to the bar frequency per Bailey-LdP
+        # (2026-07-21 methods audit; pairing annualized SR with a daily bar
+        # count inflates the z-statistic by ~sqrt(252)).
+        sr_ann = _safe_float(row["mean_test_sharpe"], 0.0)
+        sr, _ = to_per_period(sr_ann)
         n_obs = _resolve_n_obs(row)
         skew = _safe_float(row.get("skew"), skew_default)
         kurtosis = _safe_float(row.get("kurtosis"), kurt_default)
         p = psr_stat(sr, max(n_obs, 2), skew, kurtosis)
         passed = p > 0.95
-        rows.append({
-            "pair": row["pair"],
-            "numerator": row["numerator"],
-            "denominator": row["denominator"],
-            "passed": passed,
-            "tier": "TOP_TIER" if passed else "REJECT",
-            "psr_stat": round(p, 4),
-            "psr_passed": passed,
-            "n_obs_used": int(n_obs),
-            "sig_method": "psr",
-        })
-    return pd.DataFrame(rows) if rows else pd.DataFrame(
-        columns=["pair", "numerator", "denominator", "passed", "tier"]
+        rows.append(
+            {
+                "pair": row["pair"],
+                "numerator": row["numerator"],
+                "denominator": row["denominator"],
+                "passed": passed,
+                "tier": "TOP_TIER" if passed else "REJECT",
+                "psr_stat": round(p, 4),
+                "psr_passed": passed,
+                "n_obs_used": int(n_obs),
+                "sig_method": "psr",
+            }
+        )
+    return (
+        pd.DataFrame(rows)
+        if rows
+        else pd.DataFrame(
+            columns=["pair", "numerator", "denominator", "passed", "tier"]
+        )
     )

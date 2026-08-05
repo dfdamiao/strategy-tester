@@ -17,11 +17,12 @@ from strategy_tester.backtest.vbt_runner import (
 )
 from strategy_tester.backtest.metrics import (
     annualized_sharpe,
+    bars_per_year_from_index,
     geometric_cagr,
     max_drawdown,
 )
 
-SQRT_252 = np.float64(252.0) ** 0.5
+SQRT_252 = np.float64(252.0) ** 0.5  # numba default; overridden per panel
 
 
 @numba.njit(cache=True)
@@ -30,6 +31,7 @@ def _bootstrap_sharpes_numba(
     n_iter: int,
     n_blocks: int,
     seed: int,
+    sqrt_ann: float = SQRT_252,
 ) -> np.ndarray:
     """Numba-accelerated block bootstrap Sharpe computation."""
     block_size = blocks.shape[1]
@@ -65,7 +67,7 @@ def _bootstrap_sharpes_numba(
         if std_r < 1e-10:
             sharpes[it] = 0.0
         else:
-            sharpes[it] = (mean_r / std_r) * SQRT_252
+            sharpes[it] = (mean_r / std_r) * sqrt_ann
 
     return sharpes
 
@@ -130,8 +132,10 @@ def _process_one_pair_bootstrap(
         return None
 
     n_oos_bars = int(len(oos_rets))  # T-days for PSR/DSR
-    base_sharpe = annualized_sharpe(oos_rets)
-    oos_cagr = geometric_cagr(oos_rets)
+    # Frequency-correct annualization (2026-08-05)
+    ppy = bars_per_year_from_index(common)
+    base_sharpe = annualized_sharpe(oos_rets, periods_per_year=ppy)
+    oos_cagr = geometric_cagr(oos_rets, periods_per_year=ppy)
     oos_mdd = max_drawdown(oos_rets)
 
     # Bootstrap monthly blocks — cap at 30 blocks (Politis & Romano 1994:
@@ -148,7 +152,7 @@ def _process_one_pair_bootstrap(
     ])  # shape: (n_blocks, block_size)
 
     boot_sharpes = _bootstrap_sharpes_numba(
-        blocks_arr, n_iter, n_blocks, random_state,
+        blocks_arr, n_iter, n_blocks, random_state, np.sqrt(ppy),
     )
     ci_lower = float(np.percentile(boot_sharpes, 2.5))
     ci_upper = float(np.percentile(boot_sharpes, 97.5))

@@ -23,13 +23,14 @@ CRITICAL UNIT CONVENTION:
     A previous version of this module had exactly that bug (pre-2026-05-15)
     and produced systematically-deflated DSR values near zero. Fixed here.
 """
+
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-from strategy_tester.backtest.metrics import psr_stat
+from strategy_tester.backtest.metrics import psr_stat, to_per_period
 from strategy_tester.registry import register_stage
 
 EULER_MASCHERONI: float = 0.5772156649
@@ -54,15 +55,39 @@ def expected_max_sharpe(n_trials: int | float, sr_variance: float) -> float:
     Returns
     -------
     float
-        Expected maximum SR. Zero if n_trials < 2 or variance non-positive.
+        Expected maximum SR. Zero if n_trials <= 1 or variance non-positive.
+
+    Notes
+    -----
+    For ``n_trials`` in the open interval (1, 2) the closed-form Gumbel-mix
+    (Eq.5) diverges to -inf as N -> 1, so returning it directly is invalid and
+    hard-flooring it to 0 at N < 2 creates a discontinuous cliff (a ~0.5*sqrt(V)
+    jump at N=2) that zeroes the multiple-testing deflation exactly where the
+    correlation correction ``N_eff = N^(1-rho_bar)`` lands for typical grids
+    (rho_bar~0.85, N~96 -> N_eff~1.98). This regime is REAL (highly correlated
+    trials), so instead of the cliff we interpolate linearly between the true
+    ``E[max|N=1] = 0`` and ``E[max|N=2]`` — continuous, monotone, and faithful
+    (perfectly correlated trials -> 1 effective trial -> no deflation).
+    The ``n_trials >= 2`` path is byte-identical to the prior implementation
+    (paper-reproduction tests unchanged).
     """
-    if n_trials < 2 or sr_variance <= 0 or not np.isfinite(sr_variance):
+    if sr_variance <= 0 or not np.isfinite(sr_variance):
         return 0.0
     sqrt_var = float(np.sqrt(sr_variance))
+    if n_trials <= 1.0:
+        return 0.0
+    if n_trials < 2.0:
+        e_max_at_2 = _gumbel_mix_z(2.0) * sqrt_var
+        return (float(n_trials) - 1.0) * e_max_at_2
+    return sqrt_var * _gumbel_mix_z(n_trials)
+
+
+def _gumbel_mix_z(n_trials: float) -> float:
+    """Bailey-LdP 2014 Eq.5 Gumbel-mix quantile for the max of ``n_trials``
+    standard normals (valid for n_trials >= 2)."""
     z_n = float(norm.ppf(1.0 - 1.0 / n_trials))
     z_ne = float(norm.ppf(1.0 - 1.0 / (n_trials * np.e)))
-    z_max = (1 - EULER_MASCHERONI) * z_n + EULER_MASCHERONI * z_ne
-    return sqrt_var * z_max
+    return (1 - EULER_MASCHERONI) * z_n + EULER_MASCHERONI * z_ne
 
 
 def effective_n_from_correlation(rho_bar: float, n_trials: int) -> float:
@@ -142,7 +167,8 @@ def deflated_sharpe(
 
     n_eff = (
         effective_n_from_correlation(rho_bar, n_trials)
-        if rho_bar is not None else float(n_trials)
+        if rho_bar is not None
+        else float(n_trials)
     )
     sr_benchmark = expected_max_sharpe(n_eff, sr_variance)
     return psr_stat(sharpe, n_obs, skew, kurtosis, sr_benchmark)
@@ -224,31 +250,41 @@ def dsr(s3_result: pd.DataFrame, **config) -> pd.DataFrame:
             std_sr = _safe_float(row.get("std_test_sharpe"), 0.5)
             if std_sr == 0:
                 std_sr = 0.5
-            sr_var_row = std_sr ** 2
+            sr_var_row = std_sr**2
 
         skew_row = _safe_float(row.get("skew"), skew_cfg)
         kurt_row = _safe_float(row.get("kurtosis"), kurt_cfg)
 
+        # mean_test_sharpe + sr_variance are ANNUALIZED but n_obs is a daily
+        # bar count — de-annualize both to the bar frequency per Bailey-LdP
+        # (2026-07-21 methods audit; matches test_psr_math).
+        sr_pp, sr_var_pp = to_per_period(sr, sr_var_row)
         p = deflated_sharpe(
-            sharpe=sr,
+            sharpe=sr_pp,
             n_obs=max(n_obs, 2),
             n_trials=int(n_trials),
-            sr_variance=sr_var_row,
+            sr_variance=sr_var_pp if sr_var_pp is not None else sr_var_row,
             skew=skew_row,
             kurtosis=kurt_row,
             rho_bar=rho_bar_cfg,
         )
         passed = p > (1 - alpha)
-        rows.append({
-            "pair": row["pair"],
-            "numerator": row["numerator"],
-            "denominator": row["denominator"],
-            "passed": passed,
-            "tier": "TOP_TIER" if passed else "REJECT",
-            "dsr_stat": round(p, 4),
-            "dsr_passed": passed,
-            "sig_method": "dsr",
-        })
-    return pd.DataFrame(rows) if rows else pd.DataFrame(
-        columns=["pair", "numerator", "denominator", "passed", "tier"]
+        rows.append(
+            {
+                "pair": row["pair"],
+                "numerator": row["numerator"],
+                "denominator": row["denominator"],
+                "passed": passed,
+                "tier": "TOP_TIER" if passed else "REJECT",
+                "dsr_stat": round(p, 4),
+                "dsr_passed": passed,
+                "sig_method": "dsr",
+            }
+        )
+    return (
+        pd.DataFrame(rows)
+        if rows
+        else pd.DataFrame(
+            columns=["pair", "numerator", "denominator", "passed", "tier"]
+        )
     )

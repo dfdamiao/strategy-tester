@@ -17,11 +17,12 @@ from strategy_tester.backtest.vbt_runner import (
 )
 from strategy_tester.backtest.metrics import (
     annualized_sharpe,
+    bars_per_year_from_index,
     geometric_cagr,
     max_drawdown,
 )
 
-SQRT_252 = np.float64(252.0) ** 0.5
+SQRT_252 = np.float64(252.0) ** 0.5  # numba default; overridden per panel
 
 
 @numba.njit(cache=True)
@@ -29,6 +30,7 @@ def _mc_resample_numba(
     oos_rets: np.ndarray,
     n_iter: int,
     seed: int,
+    sqrt_ann: float = SQRT_252,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Numba-accelerated MC resampling: Sharpe + MaxDD per iteration."""
     n_oos = len(oos_rets)
@@ -66,7 +68,7 @@ def _mc_resample_numba(
         if std_r < 1e-10:
             sharpes[it] = 0.0
         else:
-            sharpes[it] = (mean_r / std_r) * SQRT_252
+            sharpes[it] = (mean_r / std_r) * sqrt_ann
         max_dds[it] = worst_dd
 
     return sharpes, max_dds
@@ -147,13 +149,15 @@ def _process_one_pair_monte_carlo(
         oos_rets = oos_rets[-630:]
 
     n_oos_bars = int(len(oos_rets))  # post-cap T-days for PSR/DSR
-    base_sharpe = annualized_sharpe(oos_rets)
-    oos_cagr = geometric_cagr(oos_rets)
+    # Frequency-correct annualization (2026-08-05)
+    ppy = bars_per_year_from_index(common)
+    base_sharpe = annualized_sharpe(oos_rets, periods_per_year=ppy)
+    oos_cagr = geometric_cagr(oos_rets, periods_per_year=ppy)
     oos_mdd = max_drawdown(oos_rets)
 
     # MC: Numba-accelerated resample + Sharpe + MaxDD
     mc_sharpes, mc_max_dds = _mc_resample_numba(
-        oos_rets, n_iter, random_state,
+        oos_rets, n_iter, random_state, np.sqrt(ppy),
     )
 
     ruin_prob = float(np.mean(mc_max_dds < -0.30))

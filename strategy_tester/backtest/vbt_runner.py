@@ -197,6 +197,10 @@ def backtest_vbt_fold(
         hit_rate = float(pf.trades.win_rate())
 
     sharpe = float(pf.sharpe_ratio())
+    if not np.isfinite(sharpe):
+        # vbt returns +/-inf on zero-trade (all-zero-return) folds;
+        # downstream fold aggregators only guard NaN.
+        sharpe = float("nan")
     ann_ret = float(pf.annualized_return())
     max_dd = float(pf.max_drawdown())
     returns = pf.returns()
@@ -343,6 +347,10 @@ def backtest_vbt_precomputed(
         hit_rate = float(pf.trades.win_rate())
 
     sharpe = float(pf.sharpe_ratio())
+    if not np.isfinite(sharpe):
+        # vbt returns +/-inf on zero-trade (all-zero-return) folds;
+        # downstream fold aggregators only guard NaN.
+        sharpe = float("nan")
     ann_ret = float(pf.annualized_return())
     max_dd = float(pf.max_drawdown())
     returns = pf.returns()

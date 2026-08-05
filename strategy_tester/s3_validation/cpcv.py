@@ -23,6 +23,7 @@ from strategy_tester.backtest.vbt_runner import (
 )
 from strategy_tester.backtest.metrics import (
     annualized_sharpe,
+    bars_per_year_from_index,
     geometric_cagr,
     max_drawdown,
 )
@@ -42,6 +43,43 @@ def _worker_init(
     global _WORKER_PRICES, _WORKER_SIGNAL_FN
     _WORKER_PRICES = prices
     _WORKER_SIGNAL_FN = signal_fn
+
+
+def cpcv_train_mask(
+    n: int,
+    fold_starts: list[int],
+    fold_ends: list[int],
+    excluded_folds: tuple[int, ...],
+    purge_bars: int,
+    embargo_bars: int,
+) -> "np.ndarray":
+    """Train mask for one CPCV combo: drop test folds + purge both fold
+    boundaries (± purge_bars) + embargo after each fold end.
+
+    Extracted from the worker closure 2026-08-03 (duplicate-script audit)
+    so it can be parity-pinned against ``build_cpcv_folds`` (the canonical
+    split math, kept in-file in this repo). Any change to purge/embargo
+    semantics must land in BOTH places.
+    """
+    mask = np.ones(n, dtype=bool)
+    for fi in excluded_folds:
+        mask[fold_starts[fi]:fold_ends[fi]] = False
+        for p in range(
+            max(0, fold_starts[fi] - purge_bars),
+            min(n, fold_starts[fi] + purge_bars),
+        ):
+            mask[p] = False
+        for p in range(
+            max(0, fold_ends[fi] - purge_bars),
+            min(n, fold_ends[fi] + purge_bars),
+        ):
+            mask[p] = False
+        for p in range(
+            fold_ends[fi],
+            min(n, fold_ends[fi] + embargo_bars),
+        ):
+            mask[p] = False
+    return mask
 
 
 def _build_1_factorization(n_folds: int) -> list[list[tuple[int, int]]]:
@@ -168,6 +206,9 @@ def _process_one_pair_cpcv(
         return None
 
     n = len(common)
+    # Frequency-correct annualization (2026-08-05): detect bars/year from the
+    # panel instead of the kernel's daily default.
+    ppy = bars_per_year_from_index(common)
     chunk = n // n_folds
     if chunk < 20:
         return None
@@ -178,25 +219,9 @@ def _process_one_pair_cpcv(
         return common[fold_starts[fi]:fold_ends[fi]]
 
     def build_train_mask(excluded_folds: tuple[int, ...]) -> np.ndarray:
-        mask = np.ones(n, dtype=bool)
-        for fi in excluded_folds:
-            mask[fold_starts[fi]:fold_ends[fi]] = False
-            for p in range(
-                max(0, fold_starts[fi] - purge_bars),
-                min(n, fold_starts[fi] + purge_bars),
-            ):
-                mask[p] = False
-            for p in range(
-                max(0, fold_ends[fi] - purge_bars),
-                min(n, fold_ends[fi] + purge_bars),
-            ):
-                mask[p] = False
-            for p in range(
-                fold_ends[fi],
-                min(n, fold_ends[fi] + embargo_bars),
-            ):
-                mask[p] = False
-        return mask
+        return cpcv_train_mask(
+            n, fold_starts, fold_ends, excluded_folds, purge_bars, embargo_bars
+        )
 
     def get_window(train_idx: pd.Index) -> int:
         if use_s2_window:
@@ -248,12 +273,12 @@ def _process_one_pair_cpcv(
         stitched = np.concatenate(
             [fold_returns[fi] for fi in sorted(fold_returns)]
         )
-        stitched_sr = annualized_sharpe(stitched)
-        stitched_cagr = geometric_cagr(stitched)
+        stitched_sr = annualized_sharpe(stitched, periods_per_year=ppy)
+        stitched_cagr = geometric_cagr(stitched, periods_per_year=ppy)
         stitched_max_dd = max_drawdown(stitched)
         n_oos_bars = int(len(stitched))
         per_fold_sr = [
-            annualized_sharpe(fold_returns[fi])
+            annualized_sharpe(fold_returns[fi], periods_per_year=ppy)
             for fi in sorted(fold_returns) if len(fold_returns[fi]) > 10
         ]
         # 9 identical paths → same Sharpe
@@ -298,14 +323,14 @@ def _process_one_pair_cpcv(
             # Sort by fold index → chronological order
             path_rets.sort(key=lambda x: x[0])
             stitched = np.concatenate([r for _, r in path_rets])
-            path_sharpes.append(annualized_sharpe(stitched))
+            path_sharpes.append(annualized_sharpe(stitched, periods_per_year=ppy))
             all_path_rets.append(stitched)
 
         if not path_sharpes:
             return None
 
         # Aggregate OOS returns from first complete path
-        stitched_cagr = geometric_cagr(all_path_rets[0])
+        stitched_cagr = geometric_cagr(all_path_rets[0], periods_per_year=ppy)
         stitched_max_dd = max_drawdown(all_path_rets[0])
         n_oos_bars = int(len(all_path_rets[0]))
 
