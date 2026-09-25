@@ -76,6 +76,17 @@ def test_min_trl_s4_format() -> None:
     validate_interface(result, "s4")
 
 
+def test_min_trl_deannualizes_sharpe() -> None:
+    """mean_test_sharpe is ANNUALIZED; the Bailey & LdP MinTRL formula takes the
+    Sharpe at the native (daily) frequency. Feeding the annualized value made
+    every MinTRL ~135x too short: SR=1.0 must read ~3.85 years at the module's
+    two-sided 95% z (1.96), not ~0.03."""
+    fn = get_method("s4", "min_trl")
+    out = fn(_make_s3_result().assign(mean_test_sharpe=1.0))
+    years = float(out.loc[0, "min_trl_years"])
+    assert years == pytest.approx(3.85, abs=0.05), years
+
+
 def test_carver_2sigma_s4_format() -> None:
     fn = get_method("s4", "carver_2sigma")
     result = fn(_make_s3_result())

@@ -58,21 +58,33 @@ def _merge_retry(
     raw: pd.DataFrame | None,
     retry_raw: pd.DataFrame | None,
     retried: list[str],
-) -> None:
-    """Merge a retry result back into `raw` in place."""
+) -> pd.DataFrame | None:
+    """Merge a retry result into `raw` and return the merged frame.
+
+    Keeps every bar either call returned: the index is the UNION of both.
+    (This used to assign the retried columns into `raw` in place, which
+    aligned them onto the first call's index and silently dropped the
+    retried ticker's earlier history.)
+    """
     if raw is None or retry_raw is None or retry_raw.empty:
-        return
-    if isinstance(retry_raw.columns, pd.MultiIndex):
-        for col in retry_raw.columns:
-            field, ticker = col[0], col[1]
-            if ticker not in retried:
-                continue
-            raw[(field, ticker)] = retry_raw[col]
-    else:
-        # Single-ticker retry
-        ticker = retried[0]
-        for field in retry_raw.columns:
-            raw[(field, ticker)] = retry_raw[field]
+        return raw
+    if not isinstance(retry_raw.columns, pd.MultiIndex):
+        # single-ticker retry: fields only -> (field, ticker)
+        retry_raw = retry_raw.copy()
+        retry_raw.columns = pd.MultiIndex.from_tuples(
+            [(field, retried[0]) for field in retry_raw.columns]
+        )
+    keep = [c for c in retry_raw.columns if c[1] in retried]
+    if not keep:
+        return raw
+    retry_raw = retry_raw[keep]
+    if raw.empty and not isinstance(raw.columns, pd.MultiIndex):
+        return retry_raw.copy()
+    union = raw.index.union(retry_raw.index)
+    merged = raw.reindex(union)
+    for col in keep:
+        merged[col] = retry_raw[col].reindex(union)
+    return merged
 
 
 def download_with_retry(
@@ -112,9 +124,7 @@ def download_with_retry(
     failed = _failed_tickers(raw, tickers)
     dt_s = time.time() - t0
     if not failed:
-        logger.info(
-            f"yf.download OK: {len(tickers)} ticker(s) in {dt_s:.1f}s"
-        )
+        logger.info(f"yf.download OK: {len(tickers)} ticker(s) in {dt_s:.1f}s")
         return raw, []
     logger.warning(
         f"yf.download partial: {len(tickers) - len(failed)}/{len(tickers)} OK "
@@ -129,12 +139,10 @@ def download_with_retry(
         )
         time.sleep(sleep_s)
         retry_raw = yf.download(failed, **yf_kwargs)
-        _merge_retry(raw, retry_raw, failed)
+        raw = _merge_retry(raw, retry_raw, failed)
         failed = _failed_tickers(raw, tickers)
         if not failed:
-            logger.info(
-                f"yf.download recovered all tickers after retry {attempt}"
-            )
+            logger.info(f"yf.download recovered all tickers after retry {attempt}")
             return raw, []
 
     logger.warning(
